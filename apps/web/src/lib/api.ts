@@ -43,7 +43,7 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}, 
       headers,
       body: opts.formData ?? (opts.body !== undefined ? JSON.stringify(opts.body) : undefined),
     });
-  } catch (err) {
+  } catch {
     if (opts.offlineQueue && method !== 'GET') {
       await enqueueMutation({ path, method, body: opts.body });
       return { queued: true } as T;
