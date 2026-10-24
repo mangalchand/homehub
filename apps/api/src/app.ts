@@ -16,6 +16,7 @@ import { eventsRouter } from './routes/events.js';
 import { integrationCallbackRouter, integrationsRouter } from './routes/integrations.js';
 import { tasksRouter } from './routes/tasks.js';
 import { homeRouter } from './routes/home.js';
+import { photosRouter } from './routes/photos.js';
 import { logger } from './logger.js';
 
 export function buildOpenApiDocument() {
@@ -28,7 +29,7 @@ export function buildOpenApiDocument() {
 
 export function createApp() {
   const app = express();
-  app.set('trust proxy', 1);
+  app.set('trust proxy', config.TRUST_PROXY);
   app.disable('x-powered-by');
   app.use(
     helmet({
@@ -69,6 +70,7 @@ export function createApp() {
   app.use(scoped, integrationsRouter());
   app.use(scoped, tasksRouter());
   app.use(scoped, homeRouter());
+  app.use(scoped, photosRouter());
 
   const doc = buildOpenApiDocument();
   app.get('/api/openapi.json', (_req, res) => res.json(doc));

@@ -19,6 +19,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 RUN apk add --no-cache openssl && addgroup -S app && adduser -S app -G app
 COPY --from=build --chown=app:app /out ./
+RUN mkdir -p /data/uploads && chown app:app /data/uploads
 USER app
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://127.0.0.1:4000/healthz || exit 1

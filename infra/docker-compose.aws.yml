@@ -1,0 +1,54 @@
+# Production stack on a single EC2 host: Caddy (HTTPS) -> web (nginx + PWA) -> api, plus worker.
+# Postgres is Amazon RDS (DATABASE_URL in /opt/familyhub/.env). Photos live on the uploads volume.
+services:
+  api:
+    image: familyhub-api:${TAG:-latest}
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      WORKER_MODE: 'off'
+      ENABLE_DEMO_PROVIDER: 'false'
+      COOKIE_SECURE: 'true'
+      TRUST_PROXY: '2'
+      STORAGE_DRIVER: local
+      UPLOAD_DIR: /data/uploads
+    volumes: [uploads:/data/uploads]
+    restart: unless-stopped
+    logging: { driver: json-file, options: { max-size: 10m, max-file: '5' } }
+
+  worker:
+    image: familyhub-api:${TAG:-latest}
+    command: ['node', 'dist/worker.js']
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      ENABLE_DEMO_PROVIDER: 'false'
+      STORAGE_DRIVER: local
+      UPLOAD_DIR: /data/uploads
+    volumes: [uploads:/data/uploads]
+    healthcheck: { disable: true }
+    depends_on: [api]
+    restart: unless-stopped
+    logging: { driver: json-file, options: { max-size: 10m, max-file: '5' } }
+
+  web:
+    image: familyhub-web:${TAG:-latest}
+    depends_on: [api]
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports: ['80:80', '443:443']
+    environment:
+      SITE_HOST: ${SITE_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web]
+    restart: unless-stopped
+
+volumes:
+  uploads:
+  caddy_data:
+  caddy_config:

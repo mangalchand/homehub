@@ -95,3 +95,19 @@ export function useRole() {
     canWriteEvents: adult,
   };
 }
+
+export interface Photo {
+  id: string;
+  caption: string | null;
+  width: number | null;
+  height: number | null;
+  takenAt: string | null;
+  isFavorite: boolean;
+  uploadedBy: string | null;
+  createdAt: string;
+  url: string;
+  thumbUrl: string;
+}
+
+export const usePhotos = (opts: { favorites?: boolean } = {}) =>
+  useHh<Photo[]>(['photos', opts.favorites ? 'fav' : 'all'], `/photos${opts.favorites ? '?favorites=true' : ''}`);

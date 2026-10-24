@@ -30,6 +30,13 @@ const schema = z.object({
   EMAIL_FROM: z.string().default('FamilyHub <no-reply@familyhub.local>'),
   /** Allow ICS subscriptions to private network addresses. Only for local testing. */
   ALLOW_PRIVATE_ICS_HOSTS: bool(false),
+  /** Where uploaded family photos are stored: local disk (dev/self-host) or S3 (AWS). */
+  /** Number of reverse proxies in front of the API (nginx = 1; Caddy + nginx = 2). */
+  TRUST_PROXY: z.coerce.number().int().min(0).default(1),
+  STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+  UPLOAD_DIR: z.string().default('./data/uploads'),
+  S3_BUCKET: z.string().optional().default(''),
+  AWS_REGION: z.string().optional().default('us-east-1'),
 });
 
 export type Config = z.infer<typeof schema>;

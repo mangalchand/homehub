@@ -4,47 +4,47 @@
 
 @layer base {
   :root {
-    --background: 220 33% 98%;
-    --foreground: 224 32% 14%;
+    --background: 228 33% 97%;
+    --foreground: 230 35% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 224 32% 14%;
+    --card-foreground: 230 35% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 224 32% 14%;
-    --primary: 243 75% 59%;
+    --popover-foreground: 230 35% 12%;
+    --primary: 252 83% 60%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 20% 94%;
-    --secondary-foreground: 224 32% 20%;
-    --muted: 220 20% 95%;
-    --muted-foreground: 220 10% 44%;
-    --accent: 38 92% 50%;
-    --accent-foreground: 26 83% 14%;
-    --destructive: 0 72% 51%;
+    --secondary: 230 25% 94%;
+    --secondary-foreground: 230 30% 18%;
+    --muted: 230 25% 95%;
+    --muted-foreground: 229 12% 46%;
+    --accent: 22 95% 58%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 352 80% 56%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 16% 89%;
-    --input: 220 16% 86%;
-    --ring: 243 75% 59%;
-    --radius: 0.9rem;
+    --border: 230 22% 90%;
+    --input: 230 20% 87%;
+    --ring: 252 83% 60%;
+    --radius: 1rem;
   }
   .dark {
-    --background: 226 30% 8%;
-    --foreground: 220 20% 94%;
-    --card: 226 26% 12%;
-    --card-foreground: 220 20% 94%;
-    --popover: 226 26% 12%;
-    --popover-foreground: 220 20% 94%;
-    --primary: 243 85% 70%;
-    --primary-foreground: 226 30% 8%;
-    --secondary: 226 20% 18%;
-    --secondary-foreground: 220 20% 94%;
-    --muted: 226 20% 16%;
-    --muted-foreground: 220 12% 64%;
-    --accent: 38 92% 55%;
-    --accent-foreground: 26 83% 10%;
-    --destructive: 0 63% 50%;
+    --background: 232 30% 7%;
+    --foreground: 228 25% 95%;
+    --card: 232 26% 11%;
+    --card-foreground: 228 25% 95%;
+    --popover: 232 26% 11%;
+    --popover-foreground: 228 25% 95%;
+    --primary: 252 90% 70%;
+    --primary-foreground: 232 30% 8%;
+    --secondary: 232 20% 17%;
+    --secondary-foreground: 228 25% 95%;
+    --muted: 232 20% 15%;
+    --muted-foreground: 228 12% 64%;
+    --accent: 22 95% 62%;
+    --accent-foreground: 232 30% 8%;
+    --destructive: 352 75% 58%;
     --destructive-foreground: 0 0% 100%;
-    --border: 226 18% 20%;
-    --input: 226 18% 24%;
-    --ring: 243 85% 70%;
+    --border: 232 18% 19%;
+    --input: 232 18% 23%;
+    --ring: 252 90% 70%;
   }
   /* Night mode: dim, warm, low-contrast for bedroom/hallway displays */
   .night {
@@ -52,16 +52,34 @@
   }
   * { @apply border-border; }
   html, body, #root { height: 100%; }
-  body { font-feature-settings: 'cv11', 'ss01'; -webkit-tap-highlight-color: transparent; }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    -webkit-tap-highlight-color: transparent;
+    background-image:
+      radial-gradient(60rem 40rem at 110% -10%, hsl(252 90% 70% / 0.10), transparent 60%),
+      radial-gradient(50rem 35rem at -10% 110%, hsl(22 95% 60% / 0.07), transparent 60%);
+    background-attachment: fixed;
+  }
+  h1, h2, h3 { @apply font-display tracking-tight; }
 }
 
 @layer components {
-  .fc { --fc-border-color: hsl(var(--border)); --fc-today-bg-color: hsl(var(--primary) / 0.06); --fc-page-bg-color: transparent; --fc-neutral-bg-color: hsl(var(--muted)); font-size: 0.875rem; }
-  .fc .fc-toolbar-title { font-size: 1.25rem; font-weight: 600; }
-  .fc .fc-button { @apply rounded-lg border-0 bg-secondary px-3 py-1.5 text-sm font-medium text-secondary-foreground shadow-none; }
-  .fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active { @apply bg-primary text-primary-foreground; }
-  .fc .fc-event { @apply cursor-pointer rounded-md border-0 px-1; }
+  .glass { @apply border border-white/60 bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-white/5; }
+  .text-gradient { @apply bg-gradient-to-r from-violet-600 via-indigo-500 to-sky-500 bg-clip-text text-transparent; }
+  .brand-gradient { background-image: linear-gradient(135deg, hsl(252 83% 62%), hsl(222 90% 58%) 55%, hsl(195 90% 52%)); }
+
+  .fc { --fc-border-color: hsl(var(--border)); --fc-today-bg-color: hsl(var(--primary) / 0.07); --fc-page-bg-color: transparent; --fc-neutral-bg-color: hsl(var(--muted)); font-size: 0.875rem; }
+  .fc .fc-toolbar-title { @apply font-display text-xl font-bold tracking-tight; }
+  .fc .fc-button { @apply rounded-xl border-0 bg-secondary px-3 py-1.5 text-sm font-medium text-secondary-foreground shadow-none transition-colors hover:bg-secondary/70; }
+  .fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active { @apply bg-primary text-primary-foreground shadow-glow; }
+  .fc .fc-button-group > .fc-button { @apply mx-0.5 rounded-xl; }
+  .fc .fc-scrollgrid { @apply overflow-hidden rounded-2xl; }
+  .fc .fc-event { @apply cursor-pointer rounded-lg border-0 px-1; }
+  .fc .fc-daygrid-event-dot { border-width: 4px; }
   .fc .fc-event.fh-busy { background-image: repeating-linear-gradient(45deg, transparent 0 6px, hsl(0 0% 100% / 0.18) 6px 12px); }
   .fc .fc-event.fh-pending { opacity: 0.7; outline: 2px dashed hsl(var(--accent)); }
-  .fc .fc-col-header-cell-cushion, .fc .fc-daygrid-day-number { @apply text-muted-foreground; }
+  .fc .fc-col-header-cell-cushion { @apply py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground; }
+  .fc .fc-daygrid-day-number { @apply text-sm font-medium text-muted-foreground; }
+  .fc .fc-day-today .fc-daygrid-day-number { @apply m-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary p-0 text-primary-foreground; }
 }

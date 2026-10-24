@@ -56,3 +56,11 @@ test('chores page lists kids and household tasks', async ({ page }) => {
   await expect(page.getByText('Maya').first()).toBeVisible();
   await expect(page.getByText('Household tasks')).toBeVisible();
 });
+
+test('family photos: upload and show in the gallery', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/photos');
+  const before = await page.locator('figure img').count();
+  await page.locator('input[type=file]:not([capture])').setInputFiles('../web/public/icon-512.png');
+  await expect(page.locator('figure img')).toHaveCount(before + 1, { timeout: 15_000 });
+});

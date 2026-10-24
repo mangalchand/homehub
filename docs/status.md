@@ -18,6 +18,9 @@ Last updated with the current branch. "Verified" means exercised by automated te
 | Wall dashboard, calendar, chores, rewards, lists, family, settings screens | Playwright (desktop + tablet viewports) |
 | Lint, typecheck, unit/integration tests, production build | `pnpm lint && pnpm typecheck && pnpm test && pnpm build` |
 | Docker images for API and web | `docker build` of both Dockerfiles |
+| Family photos: upload (EXIF/GPS stripped, thumbnails), gallery, favorites, dashboard slideshow, idle screensaver | Playwright upload test; live upload on AWS |
+| AWS production (EC2 + Caddy HTTPS + RDS PostgreSQL) | `/readyz`, register, household, photo upload, delete over HTTPS |
+| Android APK (Capacitor shell) | `gradlew assembleDebug`; not yet installed on a physical device by us |
 
 ## Implemented but not verified against live services
 

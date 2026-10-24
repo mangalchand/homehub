@@ -13,14 +13,16 @@ export default defineConfig({
         name: 'FamilyHub Pro',
         short_name: 'FamilyHub',
         description: 'Your family command center: calendar, chores, lists and more.',
-        theme_color: '#4f46e5',
+        theme_color: '#5b3df5',
         background_color: '#f8fafc',
         display: 'standalone',
         orientation: 'any',
         start_url: '/',
         icons: [
           { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-          { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays, Megaphone, ShoppingCart, Sparkles } from 'lucide-react';
+import { CalendarDays, Cake, ListTodo, Megaphone, ShoppingCart, Sparkles } from 'lucide-react';
 import { addDays, format, isSameDay, startOfDay } from 'date-fns';
 import type { EventOccurrenceDTO, MemberDTO } from '@familyhub/shared';
 import { useActiveLayout, useAnnouncements, useEvents, useHousehold, useList, useLists, useMembers, usePoints, useTasks, type Widget } from '@/lib/queries';
 import { zoned } from '@/lib/time';
 
-const useTz = () => useHousehold().data?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 import { MemberChoreColumn } from '@/features/chores';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, IconTile } from '@/components/ui/card';
+import { PhotoSlideshow } from '@/features/photos';
 import { Avatar, Badge } from '@/components/ui/misc';
 import { cn } from '@/lib/utils';
+
+const useTz = () => useHousehold().data?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 function Clock() {
   const tz = useTz();
@@ -18,9 +20,9 @@ function Clock() {
   const now = zoned(real, tz);
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 10_000); return () => clearInterval(t); }, []);
   return (
-    <div>
-      <p className="text-5xl font-bold tabular-nums tracking-tight md:text-6xl">{format(now, 'h:mm')}<span className="ml-1 text-2xl font-medium text-muted-foreground">{format(now, 'a')}</span></p>
-      <p className="text-lg text-muted-foreground">{format(now, 'EEEE, d MMMM')}</p>
+    <div className="text-white drop-shadow-md">
+      <p className="font-display text-6xl font-extrabold tabular-nums tracking-tight md:text-7xl">{format(now, 'h:mm')}<span className="ml-2 text-2xl font-semibold text-white/80">{format(now, 'a')}</span></p>
+      <p className="mt-1 text-lg font-medium text-white/85">{format(now, 'EEEE, d MMMM')}</p>
     </div>
   );
 }
@@ -28,9 +30,9 @@ function Clock() {
 function EventRow({ e, members, tz }: { e: EventOccurrenceDTO; members: MemberDTO[]; tz: string }) {
   const past = new Date(e.endAt) < new Date();
   return (
-    <div className={cn('flex items-center gap-3 rounded-xl p-2', past && 'opacity-50')}>
+    <div className={cn('flex items-center gap-3 rounded-2xl p-2 transition-colors hover:bg-muted/60', past && 'opacity-50')}>
       <span className="h-10 w-1.5 shrink-0 rounded-full" style={{ background: e.color }} />
-      <div className="w-16 shrink-0 text-sm tabular-nums text-muted-foreground">{e.allDay ? 'All day' : format(zoned(e.startAt, tz), 'h:mm a')}</div>
+      <div className="w-[4.75rem] shrink-0 whitespace-nowrap text-sm font-medium tabular-nums text-muted-foreground">{e.allDay ? 'All day' : format(zoned(e.startAt, tz), 'h:mm a')}</div>
       <div className="min-w-0 flex-1"><p className={cn('truncate font-medium', e.busyOnly && 'italic text-muted-foreground')}>{e.title}</p>{e.location && <p className="truncate text-xs text-muted-foreground">{e.location}</p>}</div>
       <div className="flex -space-x-1.5">{e.memberIds.slice(0, 4).map((id) => { const m = members.find((x) => x.id === id); return m ? <Avatar key={id} name={m.displayName} color={m.color} size={24} /> : null; })}</div>
     </div>
@@ -49,11 +51,11 @@ function AgendaWidget({ members, days }: { members: MemberDTO[]; days: number })
   }));
   return (
     <Card className="h-full">
-      <CardHeader><CardTitle><CalendarDays className="h-5 w-5 text-primary" /> Coming up</CardTitle><Link to="/calendar" className="text-sm text-primary">Calendar →</Link></CardHeader>
+      <CardHeader><CardTitle><IconTile className="bg-violet-500/12 bg-violet-500/10 text-violet-600 dark:text-violet-300"><CalendarDays /></IconTile> Coming up</CardTitle><Link to="/calendar" className="rounded-full px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10">Calendar →</Link></CardHeader>
       <CardContent className="space-y-4">
         {byDay.map(({ d, items }) => (
           <div key={d.toISOString()}>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{isSameDay(d, today) ? 'Today' : isSameDay(d, addDays(today, 1)) ? 'Tomorrow' : format(d, 'EEEE d MMM')}</p>
+            <p className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{isSameDay(d, today) ? 'Today' : isSameDay(d, addDays(today, 1)) ? 'Tomorrow' : format(d, 'EEEE d MMM')}</p>
             {items.length === 0 ? <p className="px-2 py-1 text-sm text-muted-foreground">Nothing scheduled</p> : items.map((e) => <EventRow key={e.id} e={e} members={members} tz={tz} />)}
           </div>
         ))}
@@ -69,7 +71,7 @@ function ChoresWidget({ members }: { members: MemberDTO[] }) {
   if (!kids.length) return null;
   return (
     <Card className="h-full">
-      <CardHeader><CardTitle><Sparkles className="h-5 w-5 text-amber-500" /> Today’s chores</CardTitle><Link to="/chores" className="text-sm text-primary">All →</Link></CardHeader>
+      <CardHeader><CardTitle><IconTile className="bg-amber-500/10 text-amber-600 dark:text-amber-300"><Sparkles /></IconTile> Today’s chores</CardTitle><Link to="/chores" className="rounded-full px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10">All →</Link></CardHeader>
       <CardContent className="grid gap-5">
         {kids.map((m) => <MemberChoreColumn key={m.id} member={m} tasks={chores} points={points.find((p) => p.memberId === m.id)?.available} compact />)}
       </CardContent>
@@ -82,7 +84,7 @@ function AnnouncementsWidget() {
   if (!items.length) return null;
   return (
     <Card className="h-full">
-      <CardHeader><CardTitle><Megaphone className="h-5 w-5 text-pink-500" /> Notes</CardTitle></CardHeader>
+      <CardHeader><CardTitle><IconTile className="bg-pink-500/10 text-pink-600 dark:text-pink-300"><Megaphone /></IconTile> Notes</CardTitle></CardHeader>
       <CardContent className="space-y-2">
         {items.slice(0, 4).map((a) => (
           <div key={a.id} className={cn('rounded-xl p-3', a.priority === 'URGENT' ? 'bg-destructive/10' : a.priority === 'IMPORTANT' ? 'bg-amber-500/10' : 'bg-muted/60')}>
@@ -102,7 +104,7 @@ function ListsWidget() {
   const open = (list?.items ?? []).filter((i) => !i.isDone && !i.deleted);
   return (
     <Card className="h-full">
-      <CardHeader><CardTitle><ShoppingCart className="h-5 w-5 text-emerald-500" /> {grocery.name}</CardTitle><Link to={`/lists/${grocery.id}`} className="text-sm text-primary">Open →</Link></CardHeader>
+      <CardHeader><CardTitle><IconTile className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"><ShoppingCart /></IconTile> {grocery.name}</CardTitle><Link to={`/lists/${grocery.id}`} className="rounded-full px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10">Open →</Link></CardHeader>
       <CardContent>
         {open.length === 0 ? <p className="text-sm text-muted-foreground">All done!</p> : (
           <div className="flex flex-wrap gap-2">{open.slice(0, 14).map((i) => <Badge key={i.id} tone="muted" className="px-3 py-1 text-sm">{i.name}{i.quantity ? ` · ${i.quantity}` : ''}</Badge>)}{open.length > 14 && <Badge>+{open.length - 14} more</Badge>}</div>
@@ -120,7 +122,7 @@ function BirthdaysWidget({ members }: { members: MemberDTO[] }) {
     .slice(0, 3);
   if (!upcoming.length) return null;
   return (
-    <Card className="h-full"><CardHeader><CardTitle>🎂 Birthdays</CardTitle></CardHeader><CardContent className="space-y-2">
+    <Card className="h-full"><CardHeader><CardTitle><IconTile className="bg-rose-500/10 text-rose-600 dark:text-rose-300"><Cake /></IconTile> Birthdays</CardTitle></CardHeader><CardContent className="space-y-2">
       {upcoming.map(({ m, next, age }) => <div key={m.id} className="flex items-center gap-3"><Avatar name={m.displayName} color={m.color} size={30} /><p className="flex-1 text-sm"><b>{m.displayName}</b> turns {age}</p><span className="text-sm text-muted-foreground">{format(next, 'd MMM')}</span></div>)}
     </CardContent></Card>
   );
@@ -131,7 +133,7 @@ function TasksWidget() {
   if (!tasks.length) return null;
   return (
     <Card className="h-full">
-      <CardHeader><CardTitle>To do</CardTitle><Link to="/chores" className="text-sm text-primary">All →</Link></CardHeader>
+      <CardHeader><CardTitle><IconTile className="bg-sky-500/10 text-sky-600 dark:text-sky-300"><ListTodo /></IconTile> To do</CardTitle><Link to="/chores" className="rounded-full px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10">All →</Link></CardHeader>
       <CardContent className="space-y-2">
         {tasks.slice(0, 5).map((t) => (
           <div key={t.id} className="flex items-center justify-between gap-2 rounded-xl bg-muted/50 px-3 py-2 text-sm">
@@ -163,10 +165,12 @@ export default function DashboardPage() {
   };
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <Clock />
-        <div className="flex -space-x-2">{members.map((m) => <Avatar key={m.id} name={m.displayName} color={m.color} size={44} />)}</div>
-      </div>
+      <PhotoSlideshow className="h-56 shadow-lift md:h-72">
+        <div className="flex h-full flex-wrap items-end justify-between gap-4 p-6 md:p-8">
+          <Clock />
+          <div className="flex -space-x-2.5">{members.map((m) => <Avatar key={m.id} name={m.displayName} color={m.color} size={46} className="ring-[3px] ring-white/80" />)}</div>
+        </div>
+      </PhotoSlideshow>
       <div className="grid gap-5 lg:grid-cols-3">
         {widgets.filter((w) => w.type !== 'clock' && w.type !== 'weather').map((w) => { const el = render(w); return el ? <div key={w.id} className={SPAN[w.size]}>{el}</div> : null; })}
       </div>

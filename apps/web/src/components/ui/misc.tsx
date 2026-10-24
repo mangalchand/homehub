@@ -49,7 +49,7 @@ export function Switch({ checked, onCheckedChange, label, disabled }: { checked:
 export function EmptyState({ icon, title, body, action }: { icon: ReactNode; title: string; body?: string; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-      <div className="rounded-2xl bg-muted p-3 text-muted-foreground">{icon}</div>
+      <div className="rounded-2xl bg-primary/10 p-4 text-primary">{icon}</div>
       <p className="font-medium">{title}</p>
       {body && <p className="max-w-sm text-sm text-muted-foreground">{body}</p>}
       {action}
@@ -63,7 +63,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        <h1 className="font-display text-3xl font-extrabold tracking-tight">{title}</h1>
         {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}

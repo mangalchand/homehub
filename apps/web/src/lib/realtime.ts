@@ -11,6 +11,7 @@ const INVALIDATIONS: Record<string, string[][]> = {
   points: [['points'], ['approvals'], ['points-history']],
   rewards: [['rewards']],
   lists: [['lists']],
+  photos: [['photos']],
   announcements: [['announcements']],
   dashboard: [['dashboard']],
   notifications: [['notifications']],

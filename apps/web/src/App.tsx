@@ -16,6 +16,7 @@ const CalendarPage = lazy(() => import('./pages/Calendar'));
 const ChoresPage = lazy(() => import('./pages/Chores'));
 const ListsPage = lazy(() => import('./pages/Lists'));
 const RewardsPage = lazy(() => import('./pages/Rewards'));
+const PhotosPage = lazy(() => import('./pages/Photos'));
 const FamilyPage = lazy(() => import('./pages/Family'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 
@@ -87,6 +88,7 @@ export function App() {
           <Route path="/lists" element={<ListsPage />} />
           <Route path="/lists/:listId" element={<ListsPage />} />
           <Route path="/rewards" element={<RewardsPage />} />
+          <Route path="/photos" element={<PhotosPage />} />
           <Route path="/family" element={<FamilyPage />} />
           <Route path="/settings/*" element={<SettingsPage />} />
           <Route path="/login" element={<Navigate to="/" replace />} />

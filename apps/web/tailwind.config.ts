@@ -6,7 +6,20 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
-      fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+      fontFamily: {
+        sans: ['"Inter Variable"', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['"Plus Jakarta Sans Variable"', '"Inter Variable"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
+      boxShadow: {
+        soft: '0 1px 2px hsl(230 30% 20% / 0.04), 0 8px 24px -6px hsl(230 30% 20% / 0.08)',
+        lift: '0 2px 4px hsl(230 30% 20% / 0.05), 0 18px 40px -12px hsl(230 40% 25% / 0.18)',
+        glow: '0 8px 30px -6px hsl(var(--primary) / 0.45)',
+      },
+      keyframes: {
+        kenburns: { '0%': { transform: 'scale(1) translate(0,0)' }, '100%': { transform: 'scale(1.12) translate(-2%, -2%)' } },
+        'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
+      },
+      animation: { kenburns: 'kenburns 14s ease-out forwards', 'fade-in': 'fade-in 1.2s ease-out' },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
