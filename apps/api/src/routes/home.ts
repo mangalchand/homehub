@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import type { ListItem } from '@prisma/client';
+import type { ListItem, Prisma } from '@prisma/client';
 import {
   createAnnouncementSchema,
   createListItemSchema,
@@ -262,7 +262,7 @@ export function homeRouter() {
     }
     return prisma.$transaction(async (tx) => {
       if (body.isDefault) await tx.dashboardLayout.updateMany({ where: { householdId }, data: { isDefault: false } });
-      const data = { name: body.name, preset: body.preset, widgets: body.widgets, isDefault: body.isDefault, deviceId: body.deviceId ?? null };
+      const data = { name: body.name, preset: body.preset, widgets: body.widgets as unknown as Prisma.InputJsonValue, isDefault: body.isDefault, deviceId: body.deviceId ?? null };
       if (!id) return tx.dashboardLayout.create({ data: { ...data, householdId } });
       const r = await tx.dashboardLayout.updateMany({ where: { id, householdId }, data });
       if (!r.count) throw notFound('Dashboard layout');

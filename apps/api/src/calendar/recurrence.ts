@@ -1,5 +1,9 @@
 import { DateTime } from 'luxon';
-import { RRule } from 'rrule';
+import * as rruleNs from 'rrule';
+
+// rrule ships CJS for Node; normalize named vs default interop.
+const { RRule } = (rruleNs as unknown as { default?: typeof rruleNs }).default ?? rruleNs;
+type RRule = InstanceType<typeof RRule>;
 
 export interface RecurringSource {
   startAt: Date;

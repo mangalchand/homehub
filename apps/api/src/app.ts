@@ -59,9 +59,9 @@ export function createApp() {
   app.use(authenticate);
   app.use(csrfProtection(['/api/v1/integrations/google/callback', '/api/v1/integrations/microsoft/callback', '/api/v1/auth/google/callback']));
 
-  app.use(authRouter());
+  app.use('/api/v1', authRouter());
   app.use(integrationCallbackRouter());
-  app.use(householdRootRouter());
+  app.use('/api/v1', householdRootRouter());
   const scoped = '/api/v1/households/:householdId';
   app.use(scoped, householdRouter());
   app.use(scoped, calendarsRouter());
