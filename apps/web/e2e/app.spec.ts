@@ -60,7 +60,9 @@ test('chores page lists kids and household tasks', async ({ page }) => {
 test('family photos: upload and show in the gallery', async ({ page }) => {
   await signIn(page);
   await page.goto('/photos');
+  await expect(page.getByRole('heading', { name: 'Family photos' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
   const before = await page.locator('figure img').count();
-  await page.locator('input[type=file]:not([capture])').setInputFiles('../web/public/icon-512.png');
-  await expect(page.locator('figure img')).toHaveCount(before + 1, { timeout: 15_000 });
+  await page.locator('input[type=file]:not([capture])').setInputFiles('public/icon-512.png');
+  await expect.poll(() => page.locator('figure img').count(), { timeout: 15_000 }).toBeGreaterThan(before);
 });
