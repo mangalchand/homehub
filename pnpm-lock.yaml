@@ -144,6 +144,9 @@ importers:
       '@fullcalendar/list':
         specifier: ^6.1.15
         version: 6.1.22(@fullcalendar/core@6.1.22)
+      '@fullcalendar/luxon3':
+        specifier: ^6.1.15
+        version: 6.1.22(@fullcalendar/core@6.1.22)(luxon@3.7.2)
       '@fullcalendar/react':
         specifier: ^6.1.15
         version: 6.1.22(@fullcalendar/core@6.1.22)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -204,6 +207,9 @@ importers:
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@18.3.1)
+      luxon:
+        specifier: ^3
+        version: 3.7.2
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -238,6 +244,9 @@ importers:
       '@testing-library/react':
         specifier: ^16.1.0
         version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@types/luxon':
+        specifier: ^3
+        version: 3.7.6
       '@types/react':
         specifier: ^18.3.14
         version: 18.3.31
@@ -1381,6 +1390,12 @@ packages:
     resolution: {integrity: sha512-7e5kZbeT3fhtXsts6VMQxbGtpoCFOZCxrIckHfn5VTrRh8Up0TKoYj/AOaIj94uz0qebWgaLXwd9Ijiu3uTwjg==}
     peerDependencies:
       '@fullcalendar/core': ~6.1.22
+
+  '@fullcalendar/luxon3@6.1.22':
+    resolution: {integrity: sha512-or43T5SQAzb3d8U6Th6Q3vclas8rGEYSsJsUohC+jySJyJuqCLcqgW+NnbrSYIYXx3MUUk32h8au+BEjfjuo1A==}
+    peerDependencies:
+      '@fullcalendar/core': ~6.1.22
+      luxon: ^3.0.0
 
   '@fullcalendar/react@6.1.22':
     resolution: {integrity: sha512-H7woM4nhvXjyM4Up2D3iSp5f8o3pRPGkiHRixvxxvIMdSMBxboGTqCI7T/vjnAfz5TCxXdeX5HxmSHeANsa6gg==}
@@ -5772,6 +5787,11 @@ snapshots:
   '@fullcalendar/list@6.1.22(@fullcalendar/core@6.1.22)':
     dependencies:
       '@fullcalendar/core': 6.1.22
+
+  '@fullcalendar/luxon3@6.1.22(@fullcalendar/core@6.1.22)(luxon@3.7.2)':
+    dependencies:
+      '@fullcalendar/core': 6.1.22
+      luxon: 3.7.2
 
   '@fullcalendar/react@6.1.22(@fullcalendar/core@6.1.22)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:

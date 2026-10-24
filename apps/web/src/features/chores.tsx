@@ -58,7 +58,7 @@ export function ChoreTile({ task, member, compact }: { task: Task; member: Membe
         {pending ? <Clock className="h-4 w-4" /> : done ? <Check className="h-5 w-5" /> : null}
       </span>
       <span className="min-w-0 flex-1">
-        <span className={cn('block truncate font-medium', done && 'text-muted-foreground line-through')}>{task.title}</span>
+        <span className={cn('block font-medium leading-snug', done && 'text-muted-foreground line-through')}>{task.title}</span>
         {pending && <span className="text-xs text-amber-600">Waiting for approval</span>}
       </span>
       {task.points > 0 && (

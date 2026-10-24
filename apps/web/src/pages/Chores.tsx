@@ -112,7 +112,7 @@ export default function ChoresPage() {
       {kids.length === 0 ? (
         <Card><EmptyState icon={<CheckSquare />} title="No chores yet" body="Create daily or weekly chores, assign them, and attach points kids can trade for rewards." /></Card>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {kids.map((m) => <Card key={m.id}><CardContent className="p-4"><MemberChoreColumn member={m} tasks={chores} points={points.find((p) => p.memberId === m.id)?.balance} /></CardContent></Card>)}
         </div>
       )}

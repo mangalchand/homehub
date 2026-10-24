@@ -4,6 +4,8 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
+import luxonPlugin from '@fullcalendar/luxon3';
+import { fromTzInput, toTzInput, zoned } from '@/lib/time';
 import type { DateSelectArg, EventClickArg, EventDropArg } from '@fullcalendar/core';
 import { AlertTriangle, Lock, MapPin, Plus, RefreshCw, Repeat } from 'lucide-react';
 import { format } from 'date-fns';
@@ -21,7 +23,6 @@ import { Avatar, Badge, Switch } from '@/components/ui/misc';
 
 const REPEAT: [string, string][] = [['', 'Does not repeat'], ['FREQ=DAILY', 'Daily'], ['FREQ=WEEKLY', 'Weekly'], ['FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', 'Every weekday'], ['FREQ=MONTHLY', 'Monthly'], ['FREQ=YEARLY', 'Yearly']];
 type Scope = 'this' | 'following' | 'all';
-const toLocalInput = (d: Date, allDay: boolean) => format(d, allDay ? 'yyyy-MM-dd' : "yyyy-MM-dd'T'HH:mm");
 
 interface Draft { id?: string; occ?: EventOccurrenceDTO; calendarId: string; title: string; start: string; end: string; allDay: boolean; location: string; description: string; rrule: string; memberIds: string[]; isPrivate: boolean; reminder: string }
 
@@ -32,8 +33,8 @@ function EventEditor({ draft, onClose, calendars, tz }: { draft: Draft; onClose:
   const isRecurring = Boolean(draft.occ?.isRecurring);
   const writable = calendars.filter((c) => c.access === 'WRITE');
   const save = useHhMutation<void>(async (hid) => {
-    const startAt = d.allDay ? new Date(`${d.start}T00:00:00Z`) : new Date(d.start);
-    let endAt = d.allDay ? new Date(`${d.end}T00:00:00Z`) : new Date(d.end);
+    const startAt = d.allDay ? new Date(`${d.start}T00:00:00Z`) : fromTzInput(d.start, tz);
+    let endAt = d.allDay ? new Date(`${d.end}T00:00:00Z`) : fromTzInput(d.end, tz);
     if (d.allDay && endAt <= startAt) endAt = new Date(startAt.getTime() + 86400000);
     const body = {
       calendarId: d.calendarId, title: d.title, startAt: startAt.toISOString(), endAt: endAt.toISOString(), allDay: d.allDay,
@@ -74,13 +75,13 @@ function EventEditor({ draft, onClose, calendars, tz }: { draft: Draft; onClose:
   );
 }
 
-function EventDetails({ occ, cal, onEdit }: { occ: EventOccurrenceDTO; cal?: CalendarDTO; onEdit: () => void }) {
+function EventDetails({ occ, cal, onEdit, tz }: { occ: EventOccurrenceDTO; cal?: CalendarDTO; onEdit: () => void; tz: string }) {
   const members = useMembers().data ?? [];
   const retry = useHhMutation<void>((hid) => api(hh(hid, `/events/${occ.eventId}/retry-sync`), { method: 'POST' }), [['events']]);
   if (occ.busyOnly) return <p className="flex items-center gap-2 text-sm text-muted-foreground"><Lock className="h-4 w-4" /> Details are private. This time is marked busy.</p>;
   return (
     <div className="space-y-3 text-sm">
-      <p className="text-muted-foreground">{occ.allDay ? format(new Date(occ.startAt), 'EEEE d MMMM') : `${format(new Date(occ.startAt), 'EEE d MMM, p')} – ${format(new Date(occ.endAt), 'p')}`}</p>
+      <p className="text-muted-foreground">{occ.allDay ? format(new Date(occ.startAt.slice(0, 10) + 'T12:00'), 'EEEE d MMMM') : `${format(zoned(occ.startAt, tz), 'EEE d MMM, p')} – ${format(zoned(occ.endAt, tz), 'p')}`}</p>
       {occ.isRecurring && <p className="flex items-center gap-2"><Repeat className="h-4 w-4" /> Repeats</p>}
       {occ.location && <p className="flex items-center gap-2"><MapPin className="h-4 w-4" /> {occ.location}</p>}
       {occ.description && <p className="whitespace-pre-wrap">{occ.description}</p>}
@@ -126,7 +127,7 @@ export default function CalendarPage() {
   );
 
   const newDraft = (start: Date, end: Date, allDay: boolean): Draft | null =>
-    defaultCal ? { calendarId: defaultCal.id, title: '', start: toLocalInput(start, allDay), end: toLocalInput(end, allDay), allDay, location: '', description: '', rrule: '', memberIds: [], isPrivate: false, reminder: '' } : null;
+    defaultCal ? { calendarId: defaultCal.id, title: '', start: allDay ? toTzInput(start, 'UTC', true) : toTzInput(start, tz, false), end: allDay ? toTzInput(new Date(Math.max(start.getTime(), end.getTime() - 86400000)), 'UTC', true) : toTzInput(end, tz, false), allDay, location: '', description: '', rrule: '', memberIds: [], isPrivate: false, reminder: '' } : null;
 
   const move = useHhMutation<{ occ: EventOccurrenceDTO; start: Date; end: Date }>((hid, v) => api(hh(hid, `/events/${v.occ.eventId}`), { method: 'PATCH', body: { startAt: v.start.toISOString(), endAt: v.end.toISOString(), scope: 'all', expectedVersion: v.occ.version } }), [['events']]);
 
@@ -158,7 +159,8 @@ export default function CalendarPage() {
       <Card className="min-w-0 flex-1"><CardContent className="p-3 md:p-4">
         <FullCalendar
           ref={fcRef}
-          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin, luxonPlugin]}
+          timeZone={tz}
           initialView={window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth'}
           headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }}
           buttonText={{ today: 'Today', month: 'Month', week: 'Week', day: 'Day', list: 'Agenda' }}
@@ -176,10 +178,10 @@ export default function CalendarPage() {
       </CardContent></Card>
       {selected && (
         <Dialog open onOpenChange={(o) => !o && setSelected(null)} title={selected.title}>
-          <EventDetails occ={selected} cal={calendars.find((c) => c.id === selected.calendarId)} onEdit={() => {
+          <EventDetails tz={tz} occ={selected} cal={calendars.find((c) => c.id === selected.calendarId)} onEdit={() => {
             const s = new Date(selected.startAt); const e = new Date(selected.endAt);
-            if (selected.allDay) e.setDate(e.getDate() - 1);
-            setDraft({ id: selected.eventId, occ: selected, calendarId: selected.calendarId, title: selected.title, start: toLocalInput(selected.allDay ? new Date(selected.startAt.slice(0, 10) + 'T12:00') : s, selected.allDay), end: toLocalInput(selected.allDay ? new Date(e.toISOString().slice(0, 10) + 'T12:00') : e, selected.allDay), allDay: selected.allDay, location: selected.location ?? '', description: selected.description ?? '', rrule: selected.rrule ?? '', memberIds: selected.memberIds, isPrivate: selected.isPrivate, reminder: '' });
+            if (selected.allDay) e.setUTCDate(e.getUTCDate() - 1);
+            setDraft({ id: selected.eventId, occ: selected, calendarId: selected.calendarId, title: selected.title, start: toTzInput(s, selected.allDay ? 'UTC' : tz, selected.allDay), end: toTzInput(e < s ? s : e, selected.allDay ? 'UTC' : tz, selected.allDay), allDay: selected.allDay, location: selected.location ?? '', description: selected.description ?? '', rrule: selected.rrule ?? '', memberIds: selected.memberIds, isPrivate: selected.isPrivate, reminder: '' });
             setSelected(null);
           }} />
         </Dialog>

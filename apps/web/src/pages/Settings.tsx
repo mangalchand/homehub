@@ -61,7 +61,7 @@ function CalendarsSection() {
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
-          {providers.filter((p) => p.key !== 'ics').map((p) => (
+          {providers.filter((p) => !['ics', 'ics_file'].includes(p.key)).map((p) => (
             <Button key={p.key} variant="outline" disabled={!p.configured} title={p.configured ? undefined : 'Not configured on this server (see docs/integrations.md)'} onClick={() => void connect(p.key)}>Connect {p.name}</Button>
           ))}
           <Button variant="outline" onClick={() => setIcsOpen(true)}>Subscribe to ICS link</Button>

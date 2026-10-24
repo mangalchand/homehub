@@ -3,14 +3,19 @@ import { Link } from 'react-router-dom';
 import { CalendarDays, Megaphone, ShoppingCart, Sparkles } from 'lucide-react';
 import { addDays, format, isSameDay, startOfDay } from 'date-fns';
 import type { EventOccurrenceDTO, MemberDTO } from '@familyhub/shared';
-import { useActiveLayout, useAnnouncements, useEvents, useList, useLists, useMembers, usePoints, useTasks, type Widget } from '@/lib/queries';
+import { useActiveLayout, useAnnouncements, useEvents, useHousehold, useList, useLists, useMembers, usePoints, useTasks, type Widget } from '@/lib/queries';
+import { zoned } from '@/lib/time';
+
+const useTz = () => useHousehold().data?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 import { MemberChoreColumn } from '@/features/chores';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, Badge } from '@/components/ui/misc';
 import { cn } from '@/lib/utils';
 
 function Clock() {
-  const [now, setNow] = useState(new Date());
+  const tz = useTz();
+  const [real, setNow] = useState(new Date());
+  const now = zoned(real, tz);
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 10_000); return () => clearInterval(t); }, []);
   return (
     <div>
@@ -20,12 +25,12 @@ function Clock() {
   );
 }
 
-function EventRow({ e, members }: { e: EventOccurrenceDTO; members: MemberDTO[] }) {
+function EventRow({ e, members, tz }: { e: EventOccurrenceDTO; members: MemberDTO[]; tz: string }) {
   const past = new Date(e.endAt) < new Date();
   return (
     <div className={cn('flex items-center gap-3 rounded-xl p-2', past && 'opacity-50')}>
       <span className="h-10 w-1.5 shrink-0 rounded-full" style={{ background: e.color }} />
-      <div className="w-16 shrink-0 text-sm tabular-nums text-muted-foreground">{e.allDay ? 'All day' : format(new Date(e.startAt), 'h:mm a')}</div>
+      <div className="w-16 shrink-0 text-sm tabular-nums text-muted-foreground">{e.allDay ? 'All day' : format(zoned(e.startAt, tz), 'h:mm a')}</div>
       <div className="min-w-0 flex-1"><p className={cn('truncate font-medium', e.busyOnly && 'italic text-muted-foreground')}>{e.title}</p>{e.location && <p className="truncate text-xs text-muted-foreground">{e.location}</p>}</div>
       <div className="flex -space-x-1.5">{e.memberIds.slice(0, 4).map((id) => { const m = members.find((x) => x.id === id); return m ? <Avatar key={id} name={m.displayName} color={m.color} size={24} /> : null; })}</div>
     </div>
@@ -33,18 +38,23 @@ function EventRow({ e, members }: { e: EventOccurrenceDTO; members: MemberDTO[] 
 }
 
 function AgendaWidget({ members, days }: { members: MemberDTO[]; days: number }) {
-  const start = useMemo(() => startOfDay(new Date()), []);
-  const end = useMemo(() => addDays(start, days), [start, days]);
-  const events = useEvents(start, end).data ?? [];
-  const byDay = Array.from({ length: days }, (_, i) => addDays(start, i)).map((d) => ({ d, items: events.filter((e) => isSameDay(new Date(e.startAt), d) || (e.allDay && new Date(e.startAt) <= d && new Date(e.endAt) > d)) }));
+  const tz = useTz();
+  const today = useMemo(() => startOfDay(zoned(new Date(), tz)), [tz]);
+  const [qs, qe] = useMemo(() => [new Date(Date.now() - 86400000), new Date(Date.now() + (days + 1) * 86400000)], [days]);
+  const events = useEvents(qs, qe).data ?? [];
+  const dayOf = (e: EventOccurrenceDTO, iso: string) => (e.allDay ? new Date(iso.slice(0, 10) + 'T00:00') : zoned(iso, tz));
+  const byDay = Array.from({ length: days }, (_, i) => addDays(today, i)).map((d) => ({
+    d,
+    items: events.filter((e) => (e.allDay ? dayOf(e, e.startAt) <= d && dayOf(e, e.endAt) > d : isSameDay(dayOf(e, e.startAt), d))),
+  }));
   return (
     <Card className="h-full">
       <CardHeader><CardTitle><CalendarDays className="h-5 w-5 text-primary" /> Coming up</CardTitle><Link to="/calendar" className="text-sm text-primary">Calendar →</Link></CardHeader>
       <CardContent className="space-y-4">
         {byDay.map(({ d, items }) => (
           <div key={d.toISOString()}>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{isSameDay(d, new Date()) ? 'Today' : isSameDay(d, addDays(new Date(), 1)) ? 'Tomorrow' : format(d, 'EEEE d MMM')}</p>
-            {items.length === 0 ? <p className="px-2 py-1 text-sm text-muted-foreground">Nothing scheduled</p> : items.map((e) => <EventRow key={e.id} e={e} members={members} />)}
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{isSameDay(d, today) ? 'Today' : isSameDay(d, addDays(today, 1)) ? 'Tomorrow' : format(d, 'EEEE d MMM')}</p>
+            {items.length === 0 ? <p className="px-2 py-1 text-sm text-muted-foreground">Nothing scheduled</p> : items.map((e) => <EventRow key={e.id} e={e} members={members} tz={tz} />)}
           </div>
         ))}
       </CardContent>
@@ -60,7 +70,7 @@ function ChoresWidget({ members }: { members: MemberDTO[] }) {
   return (
     <Card className="h-full">
       <CardHeader><CardTitle><Sparkles className="h-5 w-5 text-amber-500" /> Today’s chores</CardTitle><Link to="/chores" className="text-sm text-primary">All →</Link></CardHeader>
-      <CardContent className={cn('grid gap-5', kids.length > 1 && 'sm:grid-cols-2')}>
+      <CardContent className="grid gap-5">
         {kids.map((m) => <MemberChoreColumn key={m.id} member={m} tasks={chores} points={points.find((p) => p.memberId === m.id)?.available} compact />)}
       </CardContent>
     </Card>
@@ -116,6 +126,24 @@ function BirthdaysWidget({ members }: { members: MemberDTO[] }) {
   );
 }
 
+function TasksWidget() {
+  const tasks = (useTasks('TASK').data ?? []).filter((t) => t.status !== 'DONE');
+  if (!tasks.length) return null;
+  return (
+    <Card className="h-full">
+      <CardHeader><CardTitle>To do</CardTitle><Link to="/chores" className="text-sm text-primary">All →</Link></CardHeader>
+      <CardContent className="space-y-2">
+        {tasks.slice(0, 5).map((t) => (
+          <div key={t.id} className="flex items-center justify-between gap-2 rounded-xl bg-muted/50 px-3 py-2 text-sm">
+            <span className="font-medium">{t.title}</span>
+            {t.isOverdue ? <Badge tone="danger">Overdue</Badge> : t.dueAt ? <span className="text-xs text-muted-foreground">{format(new Date(t.dueAt), 'EEE d MMM')}</span> : null}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 const SPAN: Record<Widget['size'], string> = { sm: 'lg:col-span-1', md: 'lg:col-span-1', lg: 'lg:col-span-2' };
 
 export default function DashboardPage() {
@@ -125,7 +153,8 @@ export default function DashboardPage() {
   const render = (w: Widget) => {
     switch (w.type) {
       case 'agenda': case 'calendar': return <AgendaWidget members={members} days={Number(w.config.days ?? 3)} />;
-      case 'chores': case 'tasks': return <ChoresWidget members={members} />;
+      case 'chores': return <ChoresWidget members={members} />;
+      case 'tasks': return <TasksWidget />;
       case 'announcements': return <AnnouncementsWidget />;
       case 'lists': return <ListsWidget />;
       case 'birthdays': return <BirthdaysWidget members={members} />;
