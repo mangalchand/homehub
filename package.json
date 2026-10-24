@@ -1,0 +1,23 @@
+{
+  "name": "familyhub-pro",
+  "private": true,
+  "version": "0.1.0",
+  "description": "FamilyHub Pro — an all-in-one family command center",
+  "packageManager": "pnpm@9.15.9",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @familyhub/api --filter @familyhub/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:migrate": "pnpm --filter @familyhub/api db:migrate",
+    "db:seed": "pnpm --filter @familyhub/api db:seed",
+    "e2e": "pnpm --filter @familyhub/web e2e",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "typescript": "~5.6.3"
+  }
+}
