@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { forwardRef, type InputHTMLAttributes, type LabelHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -15,10 +16,14 @@ Select.displayName = 'Select';
 export const Label = ({ className, ...p }: LabelHTMLAttributes<HTMLLabelElement>) => <label className={cn('text-sm font-medium', className)} {...p} />;
 
 export function Field({ label, error, children, hint }: { label: string; error?: string; hint?: string; children: React.ReactNode }) {
+  const autoId = React.useId();
+  const child = React.isValidElement<{ id?: string }>(children) ? children : null;
+  const isControl = child && typeof child.type !== 'string' ? true : child ? ['input', 'select', 'textarea'].includes(child.type as string) : false;
+  const id = child?.props.id ?? autoId;
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
-      {children}
+      {isControl ? <Label htmlFor={id}>{label}</Label> : <p className="text-sm font-medium">{label}</p>}
+      {isControl && child ? React.cloneElement(child, { id }) : children}
       {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

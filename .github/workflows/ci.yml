@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: familyhub
+          POSTGRES_PASSWORD: familyhub
+          POSTGRES_DB: familyhub_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U familyhub" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://familyhub:familyhub@localhost:5432/familyhub_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @familyhub/api db:generate
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: verify
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: familyhub
+          POSTGRES_PASSWORD: familyhub
+          POSTGRES_DB: familyhub
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U familyhub" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://familyhub:familyhub@localhost:5432/familyhub
+      ENCRYPTION_KEY: ${{ secrets.E2E_ENCRYPTION_KEY || 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=' }}
+      SESSION_SECRET: ci-only-session-secret-not-for-production
+      WEB_ORIGIN: http://localhost:5173
+      ENABLE_DEMO_PROVIDER: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @familyhub/api db:generate && pnpm --filter @familyhub/api db:migrate && pnpm --filter @familyhub/api db:seed
+      - run: pnpm --filter @familyhub/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @familyhub/web e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
