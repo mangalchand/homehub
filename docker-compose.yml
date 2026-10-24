@@ -28,6 +28,7 @@ services:
   worker:
     build: { context: ., dockerfile: infra/api.Dockerfile }
     command: ['node', 'dist/worker.js']
+    healthcheck: { disable: true }
     env_file: .env
     environment:
       NODE_ENV: production

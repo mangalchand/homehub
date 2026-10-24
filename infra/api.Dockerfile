@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 FROM node:22-alpine AS base
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+RUN apk add --no-cache openssl && corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
 
 FROM base AS build
@@ -17,7 +17,7 @@ RUN pnpm --filter @familyhub/api deploy --prod /out && cp -r apps/api/dist apps/
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
-RUN addgroup -S app && adduser -S app -G app
+RUN apk add --no-cache openssl && addgroup -S app && adduser -S app -G app
 COPY --from=build --chown=app:app /out ./
 USER app
 EXPOSE 4000

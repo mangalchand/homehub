@@ -18,7 +18,7 @@ pnpm dev            # API on :4000, web on :5173
 
 Open http://localhost:5173 and sign in as `demo@familyhub.local` / `FamilyHub!2024` (household PIN `1234`). These are local seed credentials only.
 
-API docs (OpenAPI / Swagger UI): http://localhost:4000/docs
+API docs (OpenAPI / Swagger UI): http://localhost:4000/api/docs
 
 ## Self-hosting with Docker Compose
 
