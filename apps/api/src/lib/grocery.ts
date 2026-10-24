@@ -1,5 +1,5 @@
 const CATEGORIES: [string, RegExp][] = [
-  ['Produce', /\b(apple|banana|orange|lemon|lime|grape|berr(y|ies)|lettuce|spinach|kale|tomato|potato|onion|garlic|carrot|pepper|cucumber|avocado|broccoli|celery|mushroom|fruit|vegetable|herb|cilantro|basil|zucchini)s?\b/i],
+  ['Produce', /\b(apple|banana|orange|lemon|lime|grape|\w*berr(y|ies)|lettuce|spinach|kale|tomato|potato|onion|garlic|carrot|pepper|cucumber|avocado|broccoli|celery|mushroom|fruit|vegetable|herb|cilantro|basil|zucchini)s?\b/i],
   ['Dairy & Eggs', /\b(milk|cheese|yogh?urt|butter|cream|eggs?|sour cream|cottage)\b/i],
   ['Meat & Seafood', /\b(chicken|beef|pork|turkey|bacon|sausage|ham|steak|fish|salmon|tuna|shrimp|lamb|mince)\b/i],
   ['Bakery', /\b(bread|bagel|bun|roll|tortilla|muffin|croissant|cake|pita)s?\b/i],
