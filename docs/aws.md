@@ -10,17 +10,32 @@
 
 Stack definition: [`infra/docker-compose.aws.yml`](../infra/docker-compose.aws.yml) + [`infra/Caddyfile`](../infra/Caddyfile), deployed to `/opt/familyhub`. Secrets live only in `/opt/familyhub/.env` on the server (mode 600): `DATABASE_URL`, `ENCRYPTION_KEY` (generated on the server), `WEB_ORIGIN`, `API_PUBLIC_URL`, `SITE_HOST`.
 
-## Deploy an update
+## Configuration and deployment files
 
-```bash
-infra/deploy-aws.sh            # builds images, ships them over SSH, restarts, checks /readyz
+| File | Purpose |
+| --- | --- |
+| [`deploy/familyhub.config`](../deploy/familyhub.config) | **All settings** in one place: AWS region, server size, database size and backups, domain, SSH access, and app settings (`APP_*`, e.g. session length, photo storage, Google/Microsoft client IDs) |
+| `deploy/secrets.env` | Secrets only (OAuth client secrets, SMTP). Copy from [`deploy/secrets.example.env`](../deploy/secrets.example.env). Git-ignored. |
+| [`deploy/deploy.ps1`](../deploy/deploy.ps1) | One-command deploy for Windows |
+| [`deploy/deploy.sh`](../deploy/deploy.sh) | Same for macOS/Linux |
+| [`deploy/server-init.sh`](../deploy/server-init.sh) | First-boot setup of a new server (Docker, swap) |
+| [`deploy/remote-deploy.sh`](../deploy/remote-deploy.sh) | Runs on the server: unpacks code, writes `.env`, builds and restarts containers |
+| [`infra/docker-compose.aws.yml`](../infra/docker-compose.aws.yml), [`infra/Caddyfile`](../infra/Caddyfile) | The production container stack and HTTPS proxy |
+
+## Deploy (first time or update)
+
+```cmd
+cd path\to\homehub
+powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1
 ```
 
-Requires the SSH key (`familyhub-key`) and port 22 allowed from your IP in `familyhub-web-sg`.
+The script creates anything missing (key pair, security groups, RDS, EC2, Elastic IP), updates what changed in the config (e.g. a bigger `EC2_INSTANCE_TYPE` or `DB_INSTANCE_CLASS`), uploads the **committed** code, rebuilds the containers on the server and waits for `https://<site>/readyz`. Re-running it is safe.
+
+Local state (SSH key, generated DB password) is kept in `STATE_DIR` (default `%USERPROFILE%\.familyhub-deploy`). Back that folder up. The server's `ENCRYPTION_KEY` is generated on the server and preserved across deploys.
 
 ## Use a real domain later
 
-Point an `A` record (e.g. `hub.example.com`) at `44.198.103.49`, set `SITE_HOST`, `WEB_ORIGIN` and `API_PUBLIC_URL` in `/opt/familyhub/.env`, `docker compose up -d`, and rebuild the APK with `FAMILYHUB_URL=https://hub.example.com`.
+Point an `A` record (e.g. `hub.example.com`) at `44.198.103.49`, set `DOMAIN=hub.example.com` in `deploy/familyhub.config`, run the deploy script, and rebuild the APK with `FAMILYHUB_URL=https://hub.example.com`.
 
 ## Cost (us-east-1, on-demand)
 

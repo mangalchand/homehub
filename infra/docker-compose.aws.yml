@@ -1,8 +1,10 @@
 # Production stack on a single EC2 host: Caddy (HTTPS) -> web (nginx + PWA) -> api, plus worker.
 # Postgres is Amazon RDS (DATABASE_URL in /opt/familyhub/.env). Photos live on the uploads volume.
+# Deployed by deploy/deploy.ps1 or deploy/deploy.sh (source is unpacked to /opt/familyhub/src).
 services:
   api:
-    image: familyhub-api:${TAG:-latest}
+    image: familyhub-api:latest
+    build: { context: ./src, dockerfile: infra/api.Dockerfile }
     env_file: .env
     environment:
       NODE_ENV: production
@@ -10,20 +12,18 @@ services:
       ENABLE_DEMO_PROVIDER: 'false'
       COOKIE_SECURE: 'true'
       TRUST_PROXY: '2'
-      STORAGE_DRIVER: local
       UPLOAD_DIR: /data/uploads
     volumes: [uploads:/data/uploads]
     restart: unless-stopped
     logging: { driver: json-file, options: { max-size: 10m, max-file: '5' } }
 
   worker:
-    image: familyhub-api:${TAG:-latest}
+    image: familyhub-api:latest
     command: ['node', 'dist/worker.js']
     env_file: .env
     environment:
       NODE_ENV: production
       ENABLE_DEMO_PROVIDER: 'false'
-      STORAGE_DRIVER: local
       UPLOAD_DIR: /data/uploads
     volumes: [uploads:/data/uploads]
     healthcheck: { disable: true }
@@ -32,7 +32,8 @@ services:
     logging: { driver: json-file, options: { max-size: 10m, max-file: '5' } }
 
   web:
-    image: familyhub-web:${TAG:-latest}
+    image: familyhub-web:latest
+    build: { context: ./src, dockerfile: infra/web.Dockerfile }
     depends_on: [api]
     restart: unless-stopped
 

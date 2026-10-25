@@ -13,3 +13,4 @@ apps/web/dev-dist
 .turbo
 playwright-report
 test-results
+deploy/secrets.env

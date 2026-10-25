@@ -30,6 +30,16 @@ docker compose exec api ./node_modules/.bin/prisma db seed   # optional demo dat
 
 The web container (nginx) serves the PWA on port 8080 and proxies `/api` to the API so cookies stay first-party. Put a TLS-terminating proxy (Caddy, Traefik, Cloudflare Tunnel) in front for production.
 
+## Deploy to AWS (one command)
+
+All settings live in [`deploy/familyhub.config`](deploy/familyhub.config). From cmd on Windows:
+
+```cmd
+powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1
+```
+
+(macOS/Linux: `./deploy/deploy.sh`.) See [docs/aws.md](docs/aws.md). Android app: [docs/android.md](docs/android.md).
+
 ## Repository layout
 
 | Path | Contents |
@@ -37,7 +47,9 @@ The web container (nginx) serves the PWA on port 8080 and proxies `/api` to the 
 | `apps/api` | Express + Prisma API, background scheduler/worker, OpenAPI, tests |
 | `apps/web` | React + Vite PWA (TanStack Query, Zustand, FullCalendar, Tailwind) |
 | `packages/shared` | Zod schemas, enums, permission rules and DTO types shared by both |
-| `infra` | Dockerfiles and nginx config |
+| `apps/android` | Capacitor Android app (APK) |
+| `deploy` | Config file + one-command AWS deploy scripts |
+| `infra` | Dockerfiles, compose files, nginx and Caddy config |
 | `docs` | Architecture, security, deployment, integrations, operations, roadmap |
 
 ## Commands
