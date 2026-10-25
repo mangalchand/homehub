@@ -21,7 +21,7 @@ function Clock() {
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 10_000); return () => clearInterval(t); }, []);
   return (
     <div className="text-white drop-shadow-md">
-      <p className="font-display text-6xl font-extrabold tabular-nums tracking-tight md:text-7xl">{format(now, 'h:mm')}<span className="ml-2 text-2xl font-semibold text-white/80">{format(now, 'a')}</span></p>
+      <p className="font-display text-5xl font-extrabold tabular-nums tracking-tight sm:text-6xl md:text-7xl">{format(now, 'h:mm')}<span className="ml-2 text-2xl font-semibold text-white/80">{format(now, 'a')}</span></p>
       <p className="mt-1 text-lg font-medium text-white/85">{format(now, 'EEEE, d MMMM')}</p>
     </div>
   );
@@ -146,6 +146,36 @@ function TasksWidget() {
   );
 }
 
+function UpNextOverlay({ members }: { members: MemberDTO[] }) {
+  const tz = useTz();
+  const [qs, qe] = useMemo(() => [new Date(), new Date(Date.now() + 14 * 86400000)], []);
+  const events = (useEvents(qs, qe).data ?? []).filter((e) => new Date(e.endAt) > new Date()).slice(0, 5);
+  const today = startOfDay(zoned(new Date(), tz));
+  return (
+    <Link to="/calendar" className="block w-full rounded-3xl border border-white/25 bg-black/35 p-4 text-white shadow-lift backdrop-blur-xl md:w-[22rem]">
+      <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white/80"><CalendarDays className="h-4 w-4" /> Up next</p>
+      {events.length === 0 ? <p className="py-2 text-sm text-white/80">Nothing in the next two weeks</p> : (
+        <ul className="space-y-1.5">
+          {events.map((e) => {
+            const start = e.allDay ? new Date(e.startAt.slice(0, 10) + 'T00:00') : zoned(e.startAt, tz);
+            const day = isSameDay(start, today) ? 'Today' : isSameDay(start, addDays(today, 1)) ? 'Tomorrow' : format(start, 'EEE d');
+            return (
+              <li key={e.id} className="flex items-center gap-2.5">
+                <span className="h-8 w-1 shrink-0 rounded-full" style={{ background: e.color }} />
+                <div className="min-w-0 flex-1">
+                  <p className={cn('truncate text-sm font-semibold', e.busyOnly && 'italic text-white/80')}>{e.title}</p>
+                  <p className="text-[11px] text-white/75">{day} · {e.allDay ? 'All day' : format(start, 'h:mm a')}</p>
+                </div>
+                <div className="flex -space-x-1">{e.memberIds.slice(0, 3).map((id) => { const m = members.find((x) => x.id === id); return m ? <Avatar key={id} name={m.displayName} color={m.color} size={20} className="ring-1 ring-black/30" /> : null; })}</div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Link>
+  );
+}
+
 const SPAN: Record<Widget['size'], string> = { sm: 'lg:col-span-1', md: 'lg:col-span-1', lg: 'lg:col-span-2' };
 
 export default function DashboardPage() {
@@ -165,10 +195,13 @@ export default function DashboardPage() {
   };
   return (
     <div className="space-y-5">
-      <PhotoSlideshow className="h-56 shadow-lift md:h-72">
-        <div className="flex h-full flex-wrap items-end justify-between gap-4 p-6 md:p-8">
-          <Clock />
-          <div className="flex -space-x-2.5">{members.map((m) => <Avatar key={m.id} name={m.displayName} color={m.color} size={46} className="ring-[3px] ring-white/80" />)}</div>
+      <PhotoSlideshow className="min-h-[22rem] shadow-lift md:h-[26rem]">
+        <div className="flex h-full min-h-[22rem] flex-col justify-between gap-4 p-5 md:h-[26rem] md:flex-row md:items-end md:p-8">
+          <div className="flex flex-col justify-end gap-4 md:h-full">
+            <Clock />
+            <div className="flex -space-x-2.5">{members.map((m) => <Avatar key={m.id} name={m.displayName} color={m.color} size={40} className="ring-[3px] ring-white/80" />)}</div>
+          </div>
+          <UpNextOverlay members={members} />
         </div>
       </PhotoSlideshow>
       <div className="grid gap-5 lg:grid-cols-3">

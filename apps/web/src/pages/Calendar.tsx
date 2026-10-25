@@ -133,18 +133,18 @@ export default function CalendarPage() {
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
-      <aside className="space-y-4 lg:w-60 lg:shrink-0">
+      <aside className="space-y-3 lg:w-60 lg:shrink-0 lg:space-y-4">
         {canWriteEvents && <Button className="w-full" onClick={() => { const s = new Date(); s.setMinutes(0, 0, 0); s.setHours(s.getHours() + 1); const dd = newDraft(s, new Date(s.getTime() + 3600000), false); if (dd) setDraft(dd); }}><Plus /> New event</Button>}
-        <Card><CardContent className="space-y-1 p-3">
-          <p className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Family</p>
+        <Card><CardContent className="flex gap-1 overflow-x-auto p-2 lg:block lg:space-y-1 lg:p-3">
+          <p className="hidden px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:block">Family</p>
           {members.map((m) => (
-            <button key={m.id} onClick={() => toggleMember(m.id)} className={cn('flex w-full items-center gap-2 rounded-lg px-1 py-1 text-sm hover:bg-muted', memberFilter.length && !memberFilter.includes(m.id) && 'opacity-40')}>
+            <button key={m.id} onClick={() => toggleMember(m.id)} className={cn('flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-1 py-1 pr-3 text-sm hover:bg-muted lg:w-full lg:rounded-lg lg:pr-1', memberFilter.length && !memberFilter.includes(m.id) && 'opacity-40')}>
               <Avatar name={m.displayName} color={m.color} size={24} /> {m.displayName}
             </button>
           ))}
-          {memberFilter.length > 0 && <button onClick={clearMemberFilter} className="px-1 text-xs text-primary">Show everyone</button>}
+          {memberFilter.length > 0 && <button onClick={clearMemberFilter} className="shrink-0 whitespace-nowrap px-1 text-xs text-primary">Show everyone</button>}
         </CardContent></Card>
-        <Card><CardContent className="space-y-1 p-3">
+        <Card className="hidden lg:block"><CardContent className="space-y-1 p-3">
           <p className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Calendars</p>
           {calendars.map((c) => (
             <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1 text-sm hover:bg-muted">
@@ -162,7 +162,8 @@ export default function CalendarPage() {
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin, luxonPlugin]}
           timeZone={tz}
           initialView={window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth'}
-          headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }}
+          headerToolbar={window.innerWidth < 768 ? { left: 'prev,next', center: 'title', right: 'today' } : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }}
+          footerToolbar={window.innerWidth < 768 ? { center: 'dayGridMonth,timeGridDay,listWeek' } : undefined}
           buttonText={{ today: 'Today', month: 'Month', week: 'Week', day: 'Day', list: 'Agenda' }}
           height="auto"
           nowIndicator

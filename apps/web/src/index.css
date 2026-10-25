@@ -83,3 +83,22 @@
   .fc .fc-daygrid-day-number { @apply text-sm font-medium text-muted-foreground; }
   .fc .fc-day-today .fc-daygrid-day-number { @apply m-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary p-0 text-primary-foreground; }
 }
+
+@media (max-width: 767px) {
+  .fc .fc-toolbar { @apply gap-2; }
+  .fc .fc-toolbar-title { @apply text-base; }
+  .fc .fc-button { @apply px-2.5 py-1 text-xs; }
+  .fc .fc-footer-toolbar { @apply mt-3; }
+}
+
+@layer components {
+  .fc .fc-button-primary { @apply border-0 bg-secondary text-secondary-foreground shadow-none; }
+  .fc .fc-button-primary:hover { @apply bg-secondary/70 text-secondary-foreground; }
+  .fc .fc-button-primary:disabled { @apply bg-secondary text-muted-foreground opacity-60; }
+  .fc .fc-list { @apply overflow-hidden rounded-2xl border-0; }
+  .fc .fc-list-day-cushion { @apply bg-muted/70 px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground; }
+  .fc .fc-list-event td { @apply border-border/60 py-3; }
+  .fc .fc-list-event-time { @apply whitespace-nowrap text-sm font-medium text-muted-foreground; }
+  .fc .fc-list-event-title { @apply text-sm font-semibold; }
+  .fc .fc-list-event:hover td { @apply bg-muted/50; }
+}

@@ -18,6 +18,7 @@ export default {
       keyframes: {
         kenburns: { '0%': { transform: 'scale(1) translate(0,0)' }, '100%': { transform: 'scale(1.12) translate(-2%, -2%)' } },
         'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
+        wiggle: { '0%,100%': { transform: 'rotate(0)' }, '25%': { transform: 'rotate(-12deg)' }, '75%': { transform: 'rotate(12deg)' } },
       },
       animation: { kenburns: 'kenburns 14s ease-out forwards', 'fade-in': 'fade-in 1.2s ease-out' },
       colors: {

@@ -16,7 +16,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 /** Cross-fading Ken Burns slideshow. Favorites appear twice as often. */
-export function PhotoSlideshow({ intervalMs = 9000, className, rounded = true, children }: { intervalMs?: number; className?: string; rounded?: boolean; children?: React.ReactNode }) {
+export function PhotoSlideshow({ intervalMs = 9000, className, rounded = true, fit = 'contain', children }: { intervalMs?: number; className?: string; rounded?: boolean; fit?: 'contain' | 'cover'; children?: React.ReactNode }) {
   const data = usePhotos().data;
   const deck = useMemo(() => shuffle((data ?? []).flatMap((p) => (p.isFavorite ? [p, p] : [p]))), [data]);
   const [i, setI] = useState(0);
@@ -32,7 +32,9 @@ export function PhotoSlideshow({ intervalMs = 9000, className, rounded = true, c
     <div className={cn('relative overflow-hidden bg-gradient-to-br from-violet-600 via-indigo-600 to-sky-500', rounded && 'rounded-3xl', className)}>
       {current ? (
         <>
-          <img key={current.id + i} src={current.url} alt={current.caption ?? 'Family photo'} className="absolute inset-0 h-full w-full animate-[fade-in_1.2s_ease-out,kenburns_14s_ease-out_forwards] object-cover" />
+          {/* Blurred fill behind, whole photo in front: no heads cut off on wide banners. */}
+          <img key={'bg' + current.id + i} src={current.thumbUrl} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 animate-[fade-in_1.2s_ease-out] object-cover blur-2xl brightness-75" />
+          <img key={current.id + i} src={current.url} alt={current.caption ?? 'Family photo'} className={cn('absolute inset-0 h-full w-full animate-[fade-in_1.2s_ease-out] object-center', fit === 'contain' ? 'object-contain' : 'object-cover object-[50%_30%]')} />
           {next && <link rel="prefetch" href={next.url} />}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-black/20" />
           {current.caption && <p className="absolute bottom-4 right-5 max-w-[60%] truncate text-right text-sm font-medium text-white/90 drop-shadow">{current.caption}</p>}

@@ -20,6 +20,7 @@ import { realtime } from '../lib/realtime.js';
 import { route, type Mount } from '../lib/route.js';
 import { ctx, householdContext, requireCap } from '../auth/context.js';
 import { expandOccurrences, stripRrulePrefix } from '../calendar/recurrence.js';
+import { notify } from '../lib/notify.js';
 
 const taskInclude = {
   assignments: { orderBy: { position: 'asc' } },
@@ -173,6 +174,7 @@ export function tasksRouter() {
       });
       await audit(req, { householdId: c.householdId, action: 'task.created', entityType: 'task', entityId: t.id });
       realtime.publish(c.householdId, { type: 'tasks.changed', entityId: t.id });
+      void notify(c.householdId, { type: body.kind === 'CHORE' ? 'chore.assigned' : 'task.created', title: body.kind === 'CHORE' ? `New chore: ${body.title}` : `New task: ${body.title}`, body: body.points ? `${body.points} points` : undefined, url: '/chores' }, { to: body.memberIds.length ? body.memberIds : undefined, except: c.actor.kind === 'member' ? c.actor.memberId : null });
       return taskDTO(t, localToday(c.household.timezone), c.household.timezone);
     },
   );
@@ -386,6 +388,8 @@ export function tasksRouter() {
       });
       await audit(req, { householdId: c.householdId, action: 'reward.redeem_requested', entityType: 'reward', entityId: reward.id, metadata: { memberId: member.id } });
       realtime.publish(c.householdId, { type: 'points.changed', entityId: member.id });
+      const parents = await prisma.householdMember.findMany({ where: { householdId: c.householdId, role: { in: ['OWNER', 'ADULT_ADMIN', 'ADULT'] } }, select: { id: true } });
+      void notify(c.householdId, { type: 'reward.requested', title: `${member.displayName} wants “${reward.title}”`, body: `${reward.cost} points · approve in Rewards`, url: '/rewards' }, { to: parents.map((p) => p.id) });
       return { id: tx.id, status: tx.status };
     },
   );

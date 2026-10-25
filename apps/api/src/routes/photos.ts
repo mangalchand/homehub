@@ -12,6 +12,7 @@ import { realtime } from '../lib/realtime.js';
 import { route, type Mount } from '../lib/route.js';
 import { storage } from '../lib/storage.js';
 import { ctx, householdContext, requireCap } from '../auth/context.js';
+import { notify } from '../lib/notify.js';
 
 const MAX_FILES = 20;
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: MAX_FILES } });
@@ -91,6 +92,7 @@ export function photosRouter() {
       }
       await audit(req, { householdId: c.householdId, action: 'photos.uploaded', entityType: 'media', entityId: created[0]!.id, metadata: { count: created.length } });
       changed(c.householdId);
+      void notify(c.householdId, { type: 'photos.added', title: created.length === 1 ? 'New family photo' : `${created.length} new family photos`, body: 'Tap to see them', url: '/photos' }, { except: memberId });
       return created.map((r) => photoDTO(r, c.householdId));
     },
   );

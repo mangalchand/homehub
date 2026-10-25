@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
-import { realtime } from '../lib/realtime.js';
+import { notify } from '../lib/notify.js';
 import { expandOccurrences } from '../calendar/recurrence.js';
 import { retryPendingPushes, runDueSyncs } from '../calendar/sync.js';
 
@@ -26,20 +26,13 @@ export async function generateEventReminders(now = new Date(), horizonMinutes = 
         const remindAt = new Date(occ.start.getTime() - minutes * 60000);
         if (remindAt > now || occ.start < now) continue;
         for (const a of ev.assignments) {
-          const dedupeKey = `evrem:${ev.id}:${occ.start.toISOString()}:${minutes}:${a.memberId}`;
+          const dedupeKey = `evrem:${ev.id}:${occ.start.toISOString()}:${minutes}`;
           const when = DateTime.fromJSDate(occ.start).setZone(ev.timezone).toFormat('h:mm a');
-          try {
-            await prisma.notification.create({
-              data: {
-                householdId: ev.householdId, memberId: a.memberId, type: 'event.reminder', title: ev.title,
-                body: ev.allDay ? 'Today' : `Starts at ${when}`, data: { eventId: ev.id, startAt: occ.start.toISOString() }, dedupeKey,
-              },
-            });
-            created++;
-            realtime.publish(ev.householdId, { type: 'notifications.changed', entityId: a.memberId });
-          } catch (e) {
-            if ((e as { code?: string }).code !== 'P2002') throw e;
-          }
+          created += await notify(
+            ev.householdId,
+            { type: 'event.reminder', title: ev.title, body: ev.allDay ? 'Today' : `Starts at ${when}`, url: '/calendar', data: { eventId: ev.id, startAt: occ.start.toISOString() } },
+            { to: [a.memberId], dedupeKey },
+          );
         }
       }
     }

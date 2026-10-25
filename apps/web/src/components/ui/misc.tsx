@@ -61,12 +61,12 @@ export const Spinner = ({ className }: { className?: string }) => <span classNam
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
       <div>
-        <h1 className="font-display text-3xl font-extrabold tracking-tight">{title}</h1>
+        <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">{title}</h1>
         {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions && <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:p-0 [&>*]:shrink-0">{actions}</div>}
     </div>
   );
 }

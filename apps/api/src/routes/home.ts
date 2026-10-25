@@ -17,6 +17,7 @@ import { categorizeGrocery } from '../lib/grocery.js';
 import { openSseStream, realtime } from '../lib/realtime.js';
 import { route, type Mount } from '../lib/route.js';
 import { ctx, householdContext, requireCap } from '../auth/context.js';
+import { notify } from '../lib/notify.js';
 
 function itemDTO(i: ListItem) {
   return {
@@ -149,6 +150,7 @@ export function homeRouter() {
         },
       });
       publishList(c.householdId, list.id);
+      void notify(c.householdId, { type: 'list.item_added', title: `Added to ${list.name}`, body: item.name, url: `/lists/${list.id}`, external: false }, { except: c.actor.kind === 'member' ? c.actor.memberId : null, dedupeKey: `listadd:${list.id}:${Math.floor(Date.now() / 600000)}` });
       return itemDTO(item);
     },
   );
@@ -217,6 +219,7 @@ export function homeRouter() {
       },
     });
     realtime.publish(c.householdId, { type: 'announcements.changed' });
+    void notify(c.householdId, { type: 'announcement', title: body.priority === 'URGENT' ? `Urgent: ${body.title}` : body.title, body: body.body ?? undefined, url: '/' }, { except: c.actor.kind === 'member' ? c.actor.memberId : null });
     return a;
   });
 

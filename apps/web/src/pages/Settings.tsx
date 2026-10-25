@@ -12,11 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select } from '@/components/ui/input';
 import { Badge, PageHeader, Switch } from '@/components/ui/misc';
+import { NotificationsSection } from '@/features/notificationSettings';
 
 interface Provider { key: string; name: string; configured: boolean; status?: string; description?: string }
 interface Device { id: string; name: string; lastSeenAt: string | null; pairedAt: string | null }
 
 function CalendarsSection() {
+  const { isAdmin } = useRole();
   const hid = useHid();
   const calendars = useCalendars().data ?? [];
   const providers = useQuery({ queryKey: ['providers', hid], queryFn: () => api<Provider[]>(hh(hid!, '/integrations/providers')) }).data ?? [];
@@ -56,7 +58,7 @@ function CalendarsSection() {
               </div>
               {c.readOnlyReason && <Badge tone="muted">read-only</Badge>}
               {c.sync && <Button size="sm" variant="outline" onClick={() => sync.mutate(c.id, { onSuccess: () => toast.success('Sync started') })}><RefreshCw /> Sync</Button>}
-              {c.access === 'WRITE' || c.sync ? <Button size="icon" variant="ghost" aria-label={`Remove ${c.name}`} onClick={() => confirm(`Remove “${c.name}” from FamilyHub?`) && remove.mutate(c.id, { onError: (e) => toast.error((e as Error).message) })}><Trash2 /></Button> : null}
+              {c.access === 'WRITE' || c.sync || isAdmin || ['ICS_URL', 'ICS_FILE'].includes(c.source) ? <Button size="icon" variant="ghost" aria-label={`Remove ${c.name}`} onClick={() => confirm(`Remove “${c.name}” and its events from FamilyHub?${c.source.startsWith('ICS') ? ' (The original calendar is not affected.)' : ''}`) && remove.mutate(c.id, { onSuccess: () => toast.success('Calendar removed'), onError: (e) => toast.error((e as Error).message) })}><Trash2 /></Button> : null}
             </div>
           ))}
         </div>
@@ -165,6 +167,7 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader title="Settings" subtitle={me?.user ? `Signed in as ${me.user.email}` : me?.device ? `Wall display: ${me.device.name}` : undefined} actions={<Button variant="outline" onClick={() => void logout()}><LogOut /> Sign out</Button>} />
       <DisplaySection />
+      {!isDevice && <NotificationsSection />}
       {!isDevice && <CalendarsSection />}
       {isAdmin && !isDevice && <DevicesSection />}
       {isAdmin && !isDevice && <SecuritySection />}

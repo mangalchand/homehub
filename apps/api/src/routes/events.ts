@@ -13,6 +13,7 @@ import { calendarAccess, eventView, type CalendarWithAccess } from '../calendar/
 import { isOccurrenceOf, stripRrulePrefix, truncateRule } from '../calendar/recurrence.js';
 import { listOccurrences, loadCalendar, loadCalendarForWrite, type LoadedCalendar } from '../calendar/service.js';
 import { pushEventChange } from '../calendar/sync.js';
+import { notify } from '../lib/notify.js';
 
 type EventWithAssignments = Prisma.CalendarEventGetPayload<{ include: { assignments: true } }>;
 
@@ -151,6 +152,10 @@ export function eventsRouter() {
         include: { assignments: true },
       });
       afterChange(req, 'event.created', ev, cal, twoWay);
+      if (!body.isPrivate) {
+        const when = body.allDay ? new Date(body.startAt).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }) : new Date(body.startAt).toLocaleString('en-US', { timeZone: c.household.timezone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        void notify(c.householdId, { type: 'event.created', title: `New event: ${body.title}`, body: `${when}${body.location ? ` · ${body.location}` : ''}`, url: '/calendar' }, { except: c.actor.kind === 'member' ? c.actor.memberId : null });
+      }
       return eventDetail(ev);
     },
   );

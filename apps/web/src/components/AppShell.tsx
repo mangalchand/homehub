@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { CalendarDays, Gift, Images, LayoutGrid, Lock, Maximize, Moon, Settings, ShoppingBasket, Sparkles, Sun, Unlock, Users, WifiOff } from 'lucide-react';
 import { Screensaver } from '@/features/photos';
+import { NotificationBell } from './NotificationBell';
 import { Avatar } from './ui/misc';
 import { toast } from 'sonner';
 import { api, hh } from '@/lib/api';
@@ -183,7 +184,17 @@ export function AppShell({ children }: { children: ReactNode }) {
             {!online ? 'Offline — showing saved data. Changes will sync when you reconnect.' : `Syncing ${queued} offline change${queued === 1 ? '' : 's'}…`}
           </div>
         )}
-        <main className={cn('mx-auto w-full max-w-[1600px] flex-1 p-4 pb-28 md:p-6 md:pb-6', kiosk && 'md:p-5')}>{children}</main>
+        <header className="sticky top-0 z-30 flex items-center gap-3 px-4 pb-1 pt-[max(0.75rem,env(safe-area-inset-top))] md:absolute md:right-6 md:top-5 md:p-0">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 md:hidden">
+            <img src="/icon.svg" alt="" className="h-9 w-9 rounded-xl shadow-glow" />
+            <div className="min-w-0">
+              <p className="truncate font-display text-[15px] font-extrabold leading-tight">FamilyHub <span className="text-gradient">Pro</span></p>
+              <p className="truncate text-xs text-muted-foreground">{household?.name}</p>
+            </div>
+          </div>
+          {!isDevice && <NotificationBell />}
+        </header>
+        <main className={cn('mx-auto w-full max-w-[1600px] flex-1 px-4 pb-32 pt-2 md:p-6 md:pb-6 md:pr-24', kiosk && 'md:p-5')}>{children}</main>
         <span className="sr-only" aria-live="polite">
           {live ? 'Live updates connected' : 'Live updates reconnecting'}
         </span>

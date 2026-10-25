@@ -33,6 +33,16 @@ const schema = z.object({
   /** Where uploaded family photos are stored: local disk (dev/self-host) or S3 (AWS). */
   /** Number of reverse proxies in front of the API (nginx = 1; Caddy + nginx = 2). */
   TRUST_PROXY: z.coerce.number().int().min(0).default(1),
+  /** Web Push (VAPID). If unset, a key pair is generated once and stored next to the uploads. */
+  VAPID_PUBLIC_KEY: z.string().optional().default(''),
+  VAPID_PRIVATE_KEY: z.string().optional().default(''),
+  VAPID_SUBJECT: z.string().default('mailto:admin@familyhub.app'),
+  /** WhatsApp Cloud API (Meta). Leave empty to disable WhatsApp notifications. */
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(''),
+  WHATSAPP_ACCESS_TOKEN: z.string().optional().default(''),
+  /** Approved template with two body parameters ({{1}} title, {{2}} details). Empty = plain text (24h session only). */
+  WHATSAPP_TEMPLATE: z.string().optional().default(''),
+  WHATSAPP_TEMPLATE_LANG: z.string().default('en_US'),
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   UPLOAD_DIR: z.string().default('./data/uploads'),
   S3_BUCKET: z.string().optional().default(''),

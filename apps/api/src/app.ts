@@ -17,6 +17,7 @@ import { integrationCallbackRouter, integrationsRouter } from './routes/integrat
 import { tasksRouter } from './routes/tasks.js';
 import { homeRouter } from './routes/home.js';
 import { photosRouter } from './routes/photos.js';
+import { pushRouter } from './routes/push.js';
 import { logger } from './logger.js';
 
 export function buildOpenApiDocument() {
@@ -71,6 +72,7 @@ export function createApp() {
   app.use(scoped, tasksRouter());
   app.use(scoped, homeRouter());
   app.use(scoped, photosRouter());
+  app.use(scoped, pushRouter());
 
   const doc = buildOpenApiDocument();
   app.get('/api/openapi.json', (_req, res) => res.json(doc));
