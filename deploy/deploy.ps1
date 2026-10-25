@@ -92,7 +92,7 @@ $WebSgName = "$P-web-sg"; $DbSgName = "$P-rds-sg"; $DbId = "$P-db"; $ServerName 
 
 # ---- Network -------------------------------------------------------------------
 Step 'Network and security groups'
-$Vpc = Invoke-Aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query 'Vpcs[0].VpcId' --output text
+$Vpc = Invoke-Aws ec2 describe-vpcs --filters 'Name=isDefault,Values=true' --query 'Vpcs[0].VpcId' --output text
 $Az = Cfg 'AWS_AZ' "$($env:AWS_DEFAULT_REGION)a"
 $Subnet = Invoke-Aws ec2 describe-subnets --filters "Name=vpc-id,Values=$Vpc" "Name=availability-zone,Values=$Az" --query 'Subnets[0].SubnetId' --output text
 function Get-Sg([string]$Name, [string]$Desc) {
