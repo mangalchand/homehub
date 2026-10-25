@@ -4,7 +4,8 @@
 set -euo pipefail
 cd /opt/familyhub
 IN=incoming
-umask 077
+# Source files must stay world-readable (nginx serves them); only .env is private.
+umask 022
 
 # Fresh copy of the source.
 rm -rf src && mkdir src && tar -xzf "$IN/source.tar.gz" -C src
@@ -21,15 +22,16 @@ PW=$(cat "$IN/dbpw")
 KEY=$( [ -f .env ] && sed -n 's/^ENCRYPTION_KEY=//p' .env || true )
 [ -n "$KEY" ] || KEY=$(openssl rand -base64 32)
 
-{
+(umask 077; {
   grep -vE '^(DB_NAME|DB_USER)=' "$IN/app.env"
   echo "DATABASE_URL=postgresql://${DB_USER}:${PW}@${DB_HOST}:5432/${DB_NAME}?sslmode=require"
   echo "ENCRYPTION_KEY=${KEY}"
   echo "SITE_HOST=${SITE_HOST}"
   echo "WEB_ORIGIN=https://${SITE_HOST}"
   echo "API_PUBLIC_URL=https://${SITE_HOST}"
-} > .env.new
+} > .env.new)
 mv .env.new .env
+chmod 600 .env
 rm -rf "$IN"
 
 docker compose build --pull
