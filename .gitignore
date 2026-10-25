@@ -14,3 +14,4 @@ apps/web/dev-dist
 playwright-report
 test-results
 deploy/secrets.env
+*.tsbuildinfo

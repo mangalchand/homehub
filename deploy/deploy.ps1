@@ -33,15 +33,15 @@ $Secrets = Read-KV (Join-Path $PSScriptRoot 'secrets.env')
 function Cfg([string]$Key, [string]$Default = '') { if ($Config.Contains($Key) -and $Config[$Key] -ne '') { return $Config[$Key] } return $Default }
 
 function Step([string]$m) { Write-Host "`n==> $m" -ForegroundColor Cyan }
-function Aws {
+function Invoke-Aws {
   $ErrorActionPreference = 'Continue'
-  $out = & aws @args 2>&1
+  $out = & aws.exe @args 2>&1
   if ($LASTEXITCODE -ne 0) { throw "aws $($args -join ' ') failed:`n$($out | Out-String)" }
   return ($out | Out-String).Trim()
 }
 function AwsTry {
   $ErrorActionPreference = 'Continue'
-  $out = & aws @args 2>$null
+  $out = & aws.exe @args 2>$null
   if ($LASTEXITCODE -ne 0) { return $null }
   $s = ($out | Out-String).Trim()
   if ($s -eq '' -or $s -eq 'None') { return $null }
@@ -62,15 +62,15 @@ $PwFile = Join-Path $State 'db-password.txt'
 $KnownHosts = Join-Path $State 'known_hosts'
 
 Step 'Checking tools and AWS login'
-foreach ($tool in 'aws', 'git', 'ssh', 'scp') { if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "$tool is not installed or not on PATH" } }
-$who = Aws sts get-caller-identity --query Arn --output text
+foreach ($tool in 'aws.exe', 'git', 'ssh', 'scp') { if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "$tool is not installed or not on PATH" } }
+$who = Invoke-Aws sts get-caller-identity --query Arn --output text
 Write-Host "AWS identity: $who (region $env:AWS_DEFAULT_REGION)"
 
 # ---- SSH key -------------------------------------------------------------------
 Step "SSH key pair $KeyName"
 $exists = AwsTry ec2 describe-key-pairs --key-names $KeyName --query 'KeyPairs[0].KeyName' --output text
 if (-not $exists) {
-  $km = Aws ec2 create-key-pair --key-name $KeyName --key-type ed25519 --query KeyMaterial --output text
+  $km = Invoke-Aws ec2 create-key-pair --key-name $KeyName --key-type ed25519 --query KeyMaterial --output text
   Write-Lf $KeyFile ($km.Trim() + "`n")
   Write-Host "Created; private key saved to $KeyFile"
 } elseif (-not (Test-Path $KeyFile)) {
@@ -92,14 +92,14 @@ $WebSgName = "$P-web-sg"; $DbSgName = "$P-rds-sg"; $DbId = "$P-db"; $ServerName 
 
 # ---- Network -------------------------------------------------------------------
 Step 'Network and security groups'
-$Vpc = Aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query 'Vpcs[0].VpcId' --output text
+$Vpc = Invoke-Aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query 'Vpcs[0].VpcId' --output text
 $Az = Cfg 'AWS_AZ' "$($env:AWS_DEFAULT_REGION)a"
-$Subnet = Aws ec2 describe-subnets --filters "Name=vpc-id,Values=$Vpc" "Name=availability-zone,Values=$Az" --query 'Subnets[0].SubnetId' --output text
+$Subnet = Invoke-Aws ec2 describe-subnets --filters "Name=vpc-id,Values=$Vpc" "Name=availability-zone,Values=$Az" --query 'Subnets[0].SubnetId' --output text
 function Get-Sg([string]$Name, [string]$Desc) {
   $id = AwsTry ec2 describe-security-groups --filters "Name=vpc-id,Values=$Vpc" "Name=group-name,Values=$Name" --query 'SecurityGroups[0].GroupId' --output text
   if (-not $id) {
-    $id = Aws ec2 create-security-group --group-name $Name --description $Desc --vpc-id $Vpc --query GroupId --output text
-    Aws ec2 create-tags --resources $id --tags "Key=Project,Value=$P" | Out-Null
+    $id = Invoke-Aws ec2 create-security-group --group-name $Name --description $Desc --vpc-id $Vpc --query GroupId --output text
+    Invoke-Aws ec2 create-tags --resources $id --tags "Key=Project,Value=$P" | Out-Null
   }
   return $id
 }
@@ -119,7 +119,7 @@ $DbStorage = [int](Cfg 'DB_STORAGE_GB' '20')
 $DbBackup = Cfg 'DB_BACKUP_DAYS' '1'
 $db = AwsTry rds describe-db-instances --db-instance-identifier $DbId --query 'DBInstances[0].[DBInstanceClass,AllocatedStorage,BackupRetentionPeriod]' --output text
 if (-not $db) {
-  Aws rds create-db-instance --db-instance-identifier $DbId --engine postgres --engine-version (Cfg 'DB_ENGINE_VERSION' '16') `
+  Invoke-Aws rds create-db-instance --db-instance-identifier $DbId --engine postgres --engine-version (Cfg 'DB_ENGINE_VERSION' '16') `
     --db-instance-class $DbClass --allocated-storage $DbStorage --storage-type gp3 --storage-encrypted `
     --master-username (Cfg 'DB_USER' 'familyhub') --master-user-password ("file://" + $PwFile) --db-name (Cfg 'DB_NAME' 'familyhub') `
     --vpc-security-group-ids $DbSg --no-publicly-accessible --backup-retention-period $DbBackup --no-multi-az `
@@ -133,11 +133,11 @@ if (-not $db) {
   if ($cur[2] -ne $DbBackup) { $mods += @('--backup-retention-period', $DbBackup) }
   if ($mods.Count) {
     Write-Host "Updating database: $($mods -join ' ')"
-    Aws rds modify-db-instance --db-instance-identifier $DbId @mods --apply-immediately --query 'DBInstance.DBInstanceStatus' --output text | Out-Null
+    Invoke-Aws rds modify-db-instance --db-instance-identifier $DbId @mods --apply-immediately --query 'DBInstance.DBInstanceStatus' --output text | Out-Null
   } else { Write-Host 'Database exists and matches config' }
 }
-Aws rds wait db-instance-available --db-instance-identifier $DbId | Out-Null
-$DbHost = Aws rds describe-db-instances --db-instance-identifier $DbId --query 'DBInstances[0].Endpoint.Address' --output text
+Invoke-Aws rds wait db-instance-available --db-instance-identifier $DbId | Out-Null
+$DbHost = Invoke-Aws rds describe-db-instances --db-instance-identifier $DbId --query 'DBInstances[0].Endpoint.Address' --output text
 Write-Host "Database ready: $DbHost"
 
 # ---- Server --------------------------------------------------------------------
@@ -145,10 +145,10 @@ Step "EC2 server $ServerName"
 $Type = Cfg 'EC2_INSTANCE_TYPE' 't3.small'
 $inst = AwsTry ec2 describe-instances --filters "Name=tag:Name,Values=$ServerName" 'Name=instance-state-name,Values=pending,running,stopping,stopped' --query 'Reservations[0].Instances[0].[InstanceId,InstanceType,State.Name]' --output text
 if (-not $inst) {
-  $Ami = Aws ec2 describe-images --owners 099720109477 --filters 'Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*' 'Name=state,Values=available' --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text
+  $Ami = Invoke-Aws ec2 describe-images --owners 099720109477 --filters 'Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*' 'Name=state,Values=available' --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text
   $ud = Join-Path $env:TEMP 'familyhub-server-init.sh'
   Write-Lf $ud ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'server-init.sh')))
-  $InstanceId = Aws ec2 run-instances --image-id $Ami --instance-type $Type --key-name $KeyName `
+  $InstanceId = Invoke-Aws ec2 run-instances --image-id $Ami --instance-type $Type --key-name $KeyName `
     --security-group-ids $WebSg --subnet-id $Subnet --associate-public-ip-address `
     --block-device-mappings "DeviceName=/dev/sda1,Ebs={VolumeSize=$(Cfg 'EC2_VOLUME_GB' '30'),VolumeType=gp3,Encrypted=true}" `
     --user-data ("file://" + $ud) --metadata-options 'HttpTokens=required' `
@@ -160,25 +160,25 @@ if (-not $inst) {
   $InstanceId = $cur[0]
   if ($cur[1] -ne $Type) {
     Write-Host "Resizing $InstanceId from $($cur[1]) to $Type (brief downtime)"
-    Aws ec2 stop-instances --instance-ids $InstanceId | Out-Null
-    Aws ec2 wait instance-stopped --instance-ids $InstanceId | Out-Null
-    Aws ec2 modify-instance-attribute --instance-id $InstanceId --instance-type "Value=$Type" | Out-Null
-    Aws ec2 start-instances --instance-ids $InstanceId | Out-Null
+    Invoke-Aws ec2 stop-instances --instance-ids $InstanceId | Out-Null
+    Invoke-Aws ec2 wait instance-stopped --instance-ids $InstanceId | Out-Null
+    Invoke-Aws ec2 modify-instance-attribute --instance-id $InstanceId --instance-type "Value=$Type" | Out-Null
+    Invoke-Aws ec2 start-instances --instance-ids $InstanceId | Out-Null
   } elseif ($cur[2] -eq 'stopped' -or $cur[2] -eq 'stopping') {
-    if ($cur[2] -eq 'stopping') { Aws ec2 wait instance-stopped --instance-ids $InstanceId | Out-Null }
-    Aws ec2 start-instances --instance-ids $InstanceId | Out-Null
+    if ($cur[2] -eq 'stopping') { Invoke-Aws ec2 wait instance-stopped --instance-ids $InstanceId | Out-Null }
+    Invoke-Aws ec2 start-instances --instance-ids $InstanceId | Out-Null
   }
 }
-Aws ec2 wait instance-running --instance-ids $InstanceId | Out-Null
+Invoke-Aws ec2 wait instance-running --instance-ids $InstanceId | Out-Null
 
 Step "Elastic IP $EipName"
 $eip = AwsTry ec2 describe-addresses --filters "Name=tag:Name,Values=$EipName" --query 'Addresses[0].[AllocationId,PublicIp,InstanceId]' --output text
 if (-not $eip) {
-  $eip = Aws ec2 allocate-address --domain vpc --tag-specifications "ResourceType=elastic-ip,Tags=[{Key=Name,Value=$EipName},{Key=Project,Value=$P}]" --query '[AllocationId,PublicIp]' --output text
+  $eip = Invoke-Aws ec2 allocate-address --domain vpc --tag-specifications "ResourceType=elastic-ip,Tags=[{Key=Name,Value=$EipName},{Key=Project,Value=$P}]" --query '[AllocationId,PublicIp]' --output text
 }
 $e = $eip -split '\s+'
 $AllocId = $e[0]; $Ip = $e[1]
-if ($e.Count -lt 3 -or $e[2] -ne $InstanceId) { Aws ec2 associate-address --instance-id $InstanceId --allocation-id $AllocId | Out-Null }
+if ($e.Count -lt 3 -or $e[2] -ne $InstanceId) { Invoke-Aws ec2 associate-address --instance-id $InstanceId --allocation-id $AllocId | Out-Null }
 Write-Host "Server $InstanceId at $Ip"
 
 $Domain = Cfg 'DOMAIN'
