@@ -157,7 +157,7 @@ export function authRouter() {
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: auth.userId! },
       include: {
-        memberships: { where: { isActive: true }, include: { household: { select: { id: true, name: true } } } },
+        memberships: { where: { isActive: true, OR: [{ accessExpiresAt: null }, { accessExpiresAt: { gt: new Date() } }] }, include: { household: { select: { id: true, name: true } } } },
         preferences: true,
         joinRequests: { where: activeJoinWhere(), include: { household: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
       },
@@ -281,7 +281,8 @@ export function authRouter() {
       include: { household: { select: { name: true } }, invitedBy: { select: { displayName: true } } },
     });
     if (!inv || inv.revokedAt || inv.acceptedAt || inv.expiresAt < new Date()) throw notFound('Invitation');
-    return { householdName: inv.household.name, role: inv.role, email: inv.email, invitedBy: inv.invitedBy.displayName };
+    const hasAccount = Boolean(await prisma.user.findUnique({ where: { email: inv.email }, select: { id: true } }));
+    return { householdName: inv.household.name, role: inv.role, email: inv.email, invitedBy: inv.invitedBy.displayName, hasAccount };
   });
 
 

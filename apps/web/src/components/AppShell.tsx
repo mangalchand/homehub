@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { CalendarDays, Gift, Images, LayoutGrid, Lock, Maximize, Menu, Moon, Settings, ShoppingBasket, Sparkles, Sun, Unlock, Users, WifiOff } from 'lucide-react';
+import { CalendarDays, Gift, Home, Images, LayoutGrid, Lock, Maximize, Menu, Moon, Settings, ShoppingBasket, Sparkles, Sun, Unlock, Users, WifiOff } from 'lucide-react';
 import { Screensaver } from '@/features/photos';
 import { NotificationBell } from './NotificationBell';
 import { DeviceJoinPrompt } from '@/features/join';
@@ -27,10 +27,11 @@ const NAV = [
   { to: '/photos', label: 'Photos', icon: Images },
   { to: '/rewards', label: 'Rewards', icon: Gift },
   { to: '/family', label: 'Family', icon: Users },
+  { to: '/home-management', label: 'Home Management', icon: Home },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 const MOBILE_NAV = ['/', '/calendar', '/chores', '/lists', '/photos'];
-const MORE_HINT: Record<string, string> = { '/rewards': 'Points & prizes', '/family': 'Members & invites', '/settings': 'Account & app' };
+const MORE_HINT: Record<string, string> = { '/rewards': 'Points & prizes', '/family': 'Members & invites', '/home-management': 'Homes, displays & automation', '/settings': 'Account & app' };
 
 function useNightMode() {
   const { displayMode, autoNight, nightStart, nightEnd } = useUi();
@@ -92,7 +93,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [pinOpen, setPinOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const { pathname } = useLocation();
-  const moreActive = ['/rewards', '/family', '/settings'].some((p) => pathname.startsWith(p));
+  const moreActive = NAV.filter((n) => !MOBILE_NAV.includes(n.to)).some((n) => pathname.startsWith(n.to));
   const kiosk = displayMode === 'kiosk' || isDevice;
 
   useEffect(() => {
@@ -128,7 +129,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="min-w-0">
               <p className="truncate font-display text-[15px] font-extrabold tracking-tight">FamilyHub <span className="text-gradient">Pro</span></p>
               {me.memberships.length > 1 ? (
-                <select className="w-full truncate bg-transparent text-xs text-muted-foreground" value={householdId ?? ''} onChange={(e) => setHousehold(e.target.value)} aria-label="Household">
+                <select className="w-full truncate bg-transparent text-xs text-muted-foreground" value={householdId ?? ''} onChange={(e) => { setHousehold(e.target.value); navigate('/'); }} aria-label="Household">
                   {me.memberships.map((m) => (
                     <option key={m.householdId} value={m.householdId}>
                       {m.householdName}
@@ -205,7 +206,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <img src="/icon.svg" alt="" className="h-9 w-9 rounded-xl" />
             <div className="min-w-0">
               <p className="truncate font-display text-[15px] font-extrabold leading-tight">FamilyHub <span className="text-gradient">Pro</span></p>
-              <p className="truncate text-xs text-muted-foreground">{household?.name}</p>
+              {!isDevice && me.memberships.length > 1 ? <select aria-label="Choose home" className="mt-1 max-w-full rounded-md border bg-card px-2 py-1 text-sm font-semibold" value={householdId ?? ''} onChange={(e) => { setHousehold(e.target.value); navigate('/'); }}>{me.memberships.map((m) => <option key={m.householdId} value={m.householdId}>{m.householdName}</option>)}</select> : <p className="truncate text-xs text-muted-foreground">{household?.name}</p>}
             </div>
           </div>
           <NotificationBell />

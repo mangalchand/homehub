@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { CalendarPlus, Download, LogOut, MonitorSmartphone, Palette, RefreshCw, Shield, Trash2, Upload } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -15,7 +15,7 @@ import { Badge, PageHeader, Switch } from '@/components/ui/misc';
 import { NotificationsSection } from '@/features/notificationSettings';
 
 interface Provider { key: string; name: string; configured: boolean; status?: string; description?: string }
-interface Device { id: string; name: string; lastSeenAt: string | null; pairedAt: string | null }
+interface Device { id: string; name: string; type: string; lastSeenAt: string | null; pairedAt: string | null; revokedAt: string | null; pairingPending: boolean }
 
 function CalendarsSection() {
   const { isAdmin } = useRole();
@@ -83,30 +83,38 @@ function CalendarsSection() {
   );
 }
 
-function DevicesSection() {
+export function DevicesSection({ allHomes = false }: { allHomes?: boolean }) {
   const hid = useHid();
-  const devices = useQuery({ queryKey: ['devices', hid], queryFn: () => api<Device[]>(hh(hid!, '/devices')) }).data ?? [];
+  const me = useMe().data;
+  const { role, isDevice } = useRole();
+  const homes = (me?.memberships ?? []).filter((m) => allHomes || m.householdId === hid);
+  const rosters = useQueries({ queries: homes.map((m) => ({ queryKey: ['devices', m.householdId], queryFn: () => api<Device[]>(hh(m.householdId, '/devices')), refetchInterval: 30_000 })) });
   const [name, setName] = useState('Kitchen display');
   const [code, setCode] = useState<string | null>(null);
   const create = useHhMutation<void, { pairingCode: string }>((h) => api(hh(h, '/devices'), { method: 'POST', body: { name } }), [['devices']]);
-  const revoke = useHhMutation<string>((h, id) => api(hh(h, `/devices/${id}`), { method: 'DELETE' }), [['devices']]);
+  const revoke = useHhMutation<{ homeId: string; id: string }>((_h, v) => api(hh(v.homeId, `/devices/${v.id}`), { method: 'DELETE' }), [['devices']]);
   return (
     <Card>
-      <CardHeader><CardTitle><MonitorSmartphone className="h-5 w-5" /> Wall displays</CardTitle></CardHeader>
+      <CardHeader><CardTitle><MonitorSmartphone className="h-5 w-5" /> Paired displays {allHomes ? 'across your homes' : ''}</CardTitle></CardHeader>
       <CardContent className="space-y-3">
-        {devices.map((d) => (
-          <div key={d.id} className="flex items-center gap-3 rounded-xl border p-3"><div className="flex-1"><p className="font-medium">{d.name}</p><p className="text-xs text-muted-foreground">{d.lastSeenAt ? `Last seen ${formatDistanceToNow(new Date(d.lastSeenAt))} ago` : d.pairedAt ? 'Paired' : 'Waiting for pairing'}</p></div><Button size="sm" variant="outline" onClick={() => revoke.mutate(d.id)}>Revoke</Button></div>
-        ))}
-        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); create.mutate(undefined, { onSuccess: (r) => setCode(r.pairingCode), onError: (er) => toast.error((er as Error).message) }); }}>
-          <Input value={name} onChange={(e) => setName(e.target.value)} aria-label="Display name" /><Button type="submit">Pair a display</Button>
-        </form>
+        <p className="text-sm leading-relaxed text-muted-foreground">FamilyHub wall tablets and displays. Last seen reports recent activity, not a guaranteed live connection. Smart-home accessories appear only after an automation integration is connected.</p>
+        {homes.map((home, i) => <div key={home.householdId} className="space-y-2">
+          {allHomes && <p className="break-words text-sm font-semibold">{home.householdName}</p>}
+          {rosters[i]?.isPending && <p className="text-sm text-muted-foreground">Loading displays…</p>}
+          {rosters[i]?.isError && <p role="alert" className="text-sm text-destructive">Couldn’t load displays for {home.householdName}.</p>}
+          {rosters[i]?.data?.length === 0 && <p className="text-sm text-muted-foreground">No displays registered.</p>}
+          {rosters[i]?.data?.map((d) => <div key={d.id} className="flex flex-wrap items-center gap-3 rounded-xl border p-3"><div className="min-w-0 flex-1"><p className="break-words font-medium">{d.name}{me?.device?.id === d.id ? ' · this display' : ''}</p><div className="mt-1 flex flex-wrap items-center gap-2"><Badge tone={d.revokedAt ? 'danger' : d.pairedAt ? 'success' : 'muted'}>{d.revokedAt ? 'Revoked' : d.pairedAt ? 'Paired' : d.pairingPending ? 'Pairing pending' : 'Pairing expired'}</Badge>{d.lastSeenAt && <span className="text-xs text-muted-foreground">Last seen {formatDistanceToNow(new Date(d.lastSeenAt))} ago</span>}</div></div>{home.role === 'OWNER' && !isDevice && !d.revokedAt && <Button size="sm" variant="outline" disabled={revoke.isPending} onClick={() => confirm(`Revoke ${d.name} in ${home.householdName}? It will be signed out.`) && revoke.mutate({ homeId: home.householdId, id: d.id }, { onError: (e) => toast.error((e as Error).message) })}>Revoke</Button>}</div>)}
+        </div>)}
+        {role === 'OWNER' && !isDevice && <form className="flex flex-wrap gap-2 border-t pt-4" onSubmit={(e) => { e.preventDefault(); create.mutate(undefined, { onSuccess: (r) => setCode(r.pairingCode), onError: (er) => toast.error((er as Error).message) }); }}>
+          <Input className="min-w-0 flex-1" value={name} onChange={(e) => setName(e.target.value)} aria-label="Display name" maxLength={100} required /><Button type="submit" disabled={create.isPending}>Pair a display</Button>
+        </form>}
         {code && <div className="rounded-xl bg-primary/10 p-4 text-center"><p className="text-sm text-muted-foreground">On the tablet, open FamilyHub → “Wall display” and enter:</p><p className="mt-1 font-mono text-3xl font-bold tracking-widest">{code}</p><p className="text-xs text-muted-foreground">Expires in 15 minutes.</p></div>}
       </CardContent>
     </Card>
   );
 }
 
-function SecuritySection() {
+export function SecuritySection() {
   const hid = useHid();
   const household = useHousehold().data;
   const [pin, setPin] = useState('');
@@ -127,7 +135,7 @@ function SecuritySection() {
   );
 }
 
-function DisplaySection() {
+export function DisplaySection() {
   const ui = useUi();
   const layout = useActiveLayout().data;
   const { isAdmin } = useRole();
@@ -161,16 +169,16 @@ function DisplaySection() {
 
 export default function SettingsPage() {
   const me = useMe().data;
-  const { isAdmin, isDevice } = useRole();
+  const { role, isDevice } = useRole();
   const logout = async () => { await api('/api/v1/auth/logout', { method: 'POST' }); await queryClient.resetQueries(); window.location.href = '/login'; };
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader title="Settings" subtitle={me?.user ? `Signed in as ${me.user.email}` : me?.device ? `Wall display: ${me.device.name}` : undefined} actions={<Button variant="outline" onClick={() => void logout()}><LogOut /> Sign out</Button>} />
       <DisplaySection />
-      {!isDevice && <NotificationsSection />}
+      <NotificationsSection />
       {!isDevice && <CalendarsSection />}
-      {isAdmin && !isDevice && <DevicesSection />}
-      {isAdmin && !isDevice && <SecuritySection />}
+      <DevicesSection />
+      {role === 'OWNER' && !isDevice && <SecuritySection />}
     </div>
   );
 }

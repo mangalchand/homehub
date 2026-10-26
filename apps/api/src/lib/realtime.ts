@@ -26,11 +26,19 @@ class RealtimeBus {
   listenerCount(householdId: string) {
     return this.emitter.listenerCount(householdId);
   }
+  disconnectActor(householdId: string, actorId: string) {
+    this.emitter.emit(`disconnect:${householdId}:${actorId}`);
+  }
+  onDisconnect(householdId: string, actorId: string, fn: () => void) {
+    const key = `disconnect:${householdId}:${actorId}`;
+    this.emitter.on(key, fn);
+    return () => this.emitter.off(key, fn);
+  }
 }
 
 export const realtime = new RealtimeBus();
 
-export function openSseStream(res: Response, householdId: string, filter?: (m: RealtimeMessage) => boolean) {
+export function openSseStream(res: Response, householdId: string, filter?: (m: RealtimeMessage) => boolean, actorId?: string) {
   res.status(200).set({
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
@@ -44,9 +52,11 @@ export function openSseStream(res: Response, householdId: string, filter?: (m: R
     res.write(`event: message\ndata: ${JSON.stringify(m)}\n\n`);
   };
   const unsubscribe = realtime.subscribe(householdId, send);
+  const stop = actorId ? realtime.onDisconnect(householdId, actorId, () => { send({ type: 'household.changed' }); res.end(); }) : undefined;
   const heartbeat = setInterval(() => res.write(`: ping\n\n`), 25000);
   res.on('close', () => {
     clearInterval(heartbeat);
     unsubscribe();
+    stop?.();
   });
 }

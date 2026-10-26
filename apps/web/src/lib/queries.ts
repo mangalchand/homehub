@@ -43,7 +43,7 @@ export interface Approvals {
 export const useHid = () => useUi((s) => s.householdId);
 
 export const useMe = () =>
-  useQuery({ queryKey: ['me'], queryFn: () => api<Me>('/api/v1/auth/me'), staleTime: 60_000, retry: false, networkMode: 'offlineFirst' });
+  useQuery({ queryKey: ['me'], queryFn: () => api<Me>('/api/v1/auth/me'), staleTime: 60_000, refetchInterval: 60_000, retry: false, networkMode: 'offlineFirst' });
 
 function useHh<T>(key: QueryKey, path: string, opts: { enabled?: boolean; refetchInterval?: number } = {}) {
   const hid = useHid();
@@ -59,7 +59,7 @@ export const useEvents = (start: Date, end: Date) => {
     queryKey: ['events', hid, start.toISOString(), end.toISOString()],
     queryFn: () => api<EventOccurrenceDTO[]>(hh(hid!, `/events?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`)),
     enabled: Boolean(hid),
-    placeholderData: (prev) => prev,
+    placeholderData: (prev, query) => query?.queryKey[1] === hid ? prev : undefined,
   });
 };
 export const useTasks = (kind?: 'TASK' | 'CHORE', date?: string) =>

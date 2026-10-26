@@ -5,6 +5,7 @@ async function signIn(page: Page) {
   await page.getByLabel('Email').fill('demo@familyhub.local');
   await page.getByLabel('Password').fill('FamilyHub!2024');
   await page.getByRole('button', { name: 'Sign in' }).last().click();
+  await page.getByRole('button', { name: 'Open home', exact: true }).click();
   await expect(page.getByText('Coming up')).toBeVisible();
 }
 
@@ -14,6 +15,15 @@ test('rejects a wrong password', async ({ page }) => {
   await page.getByLabel('Password').fill('wrong-password-123');
   await page.getByRole('button', { name: 'Sign in' }).last().click();
   await expect(page.getByText(/incorrect/i)).toBeVisible();
+});
+
+test('home management consolidates household controls and distinguishes unconnected automation', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/home-management');
+  await expect(page.getByRole('heading', { name: 'Home Management', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Paired displays across your homes/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Manage members & invitations' })).toBeVisible();
+  await expect(page.getByText('Not connected', { exact: true })).toBeVisible();
 });
 
 test('dashboard shows agenda, chores and lists; private calendars render as busy', async ({ page }) => {

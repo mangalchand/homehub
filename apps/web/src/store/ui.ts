@@ -34,7 +34,7 @@ export const useUi = create<UiState>()(
       autoNight: false,
       hiddenCalendarIds: [],
       memberFilter: [],
-      setHousehold: (householdId) => setState({ householdId }),
+      setHousehold: (householdId) => setState({ householdId, hiddenCalendarIds: [], memberFilter: [] }),
       setTheme: (theme) => setState({ theme }),
       setDisplayMode: (displayMode) => setState({ displayMode }),
       setNight: (p) => setState(p),
