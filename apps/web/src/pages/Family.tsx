@@ -17,16 +17,17 @@ function MemberDialog({ member, onClose }: { member: MemberDTO | null; onClose: 
   const [f, setF] = useState({ firstName: member?.firstName ?? '', displayName: member?.displayName ?? '', role: member?.role ?? 'CHILD', color: member?.color ?? COLORS[3]!, birthDate: member?.birthDate?.slice(0, 10) ?? '' });
   const [email, setEmail] = useState('');
   const [link, setLink] = useState<string | null>(null);
+  const [emailed, setEmailed] = useState(false);
   const save = useHhMutation<void, { id?: string }>((hid) => {
     const body = { ...f, displayName: f.displayName || f.firstName, birthDate: f.birthDate || null };
     return member ? api(hh(hid, `/members/${member.id}`), { method: 'PATCH', body }) : api(hh(hid, '/members'), { method: 'POST', body });
   }, [['members']]);
-  const invite = useHhMutation<string | undefined, { acceptUrl: string }>((hid, memberId) => api(hh(hid, '/invitations'), { method: 'POST', body: { email, role: f.role, memberId } }), [['members']]);
-  const sendInvite = (memberId?: string) => invite.mutate(memberId, { onSuccess: (r) => { setLink(r.acceptUrl); setEmail(''); }, onError: (er) => toast.error((er as Error).message) });
+  const invite = useHhMutation<string | undefined, { acceptUrl: string; emailSent?: boolean }>((hid, memberId) => api(hh(hid, '/invitations'), { method: 'POST', body: { email, role: f.role, memberId } }), [['members']]);
+  const sendInvite = (memberId?: string) => invite.mutate(memberId, { onSuccess: (r) => { setLink(r.acceptUrl); setEmailed(Boolean(r.emailSent)); setEmail(''); }, onError: (er) => toast.error((er as Error).message) });
   const shareText = link ? `Join our family on FamilyHub: ${link}` : '';
   if (link) {
     return (
-      <Dialog open onOpenChange={(o) => !o && onClose()} title="Invitation ready" description="Send this link to them. It works once and expires in 7 days. They create an account with the email you entered.">
+      <Dialog open onOpenChange={(o) => !o && onClose()} title="Invitation ready" description={`${emailed ? 'We also emailed this link to them. ' : ''}Send this link to them. It works once and expires in 7 days. They create an account with the email you entered.`}>
         <div className="space-y-3">
           <Input readOnly value={link} onFocus={(e) => e.target.select()} />
           <div className="grid gap-2 sm:grid-cols-3">

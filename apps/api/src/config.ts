@@ -28,6 +28,9 @@ const schema = z.object({
   ENABLE_DEMO_PROVIDER: bool(false),
   WEATHER_ENABLED: bool(true),
   EMAIL_FROM: z.string().default('FamilyHub <no-reply@familyhub.local>'),
+  /** console = log only (dev); ses = send through Amazon SES using the server's AWS role. */
+  EMAIL_DRIVER: z.enum(['console', 'ses']).default('console'),
+  SES_REGION: z.string().optional().default(''),
   /** Allow ICS subscriptions to private network addresses. Only for local testing. */
   ALLOW_PRIVATE_ICS_HOSTS: bool(false),
   /** Where uploaded family photos are stored: local disk (dev/self-host) or S3 (AWS). */

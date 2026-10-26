@@ -289,14 +289,14 @@ export function householdRouter() {
         },
       });
       const acceptUrl = `${config.WEB_ORIGIN}/invite/${token}`;
-      await emailAdapter.send({
+      const emailSent = await emailAdapter.send({
         to: body.email,
         subject: `You're invited to ${c.household.name} on FamilyHub`,
         text: `Join ${c.household.name}: ${acceptUrl} (expires in 7 days)`,
       });
       await audit(req, { householdId: c.householdId, action: 'invitation.created', entityType: 'invitation', entityId: inv.id, metadata: { email: body.email, role: body.role } });
-      // The link is returned so admins can share it directly when email delivery is not configured.
-      return { id: inv.id, email: inv.email, role: inv.role, expiresAt: inv.expiresAt, acceptUrl };
+      // The link is also returned so admins can share it directly (e.g. WhatsApp) if email is off or fails.
+      return { id: inv.id, email: inv.email, role: inv.role, expiresAt: inv.expiresAt, acceptUrl, emailSent };
     },
   );
 
