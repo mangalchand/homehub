@@ -62,6 +62,7 @@ const DEVICE_ELEVATED_CAPABILITIES: Capability[] = [
   'events.write',
   'announcements.write',
   'dashboard.manage',
+  'members.manage',
 ];
 
 export type Actor =
@@ -84,6 +85,9 @@ export function isAdultRole(role: MemberRole): boolean {
 }
 
 /** Roles an actor with the given role may assign to others. Only owners can create other owners. */
+/** Roles a PIN-unlocked home display may assign (same as a parent admin). */
+export const DEVICE_ASSIGNABLE_ROLES: MemberRole[] = ['ADULT', 'CHILD', 'GUEST'];
+
 export function assignableRoles(role: MemberRole): MemberRole[] {
   if (role === 'OWNER') return ['OWNER', 'ADULT_ADMIN', 'ADULT', 'CHILD', 'GUEST'];
   if (role === 'ADULT_ADMIN') return ['ADULT', 'CHILD', 'GUEST'];

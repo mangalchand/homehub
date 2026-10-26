@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../src/db.js';
 import { randomToken, sha256 } from '../../src/lib/crypto.js';
 import { emailAdapter } from '../../src/lib/email.js';
+import { hashSecret } from '../../src/auth/passwords.js';
 import { app, login, makeHousehold, PASSWORD, resetDb } from './helpers.js';
 
 beforeEach(resetDb);
@@ -91,5 +92,23 @@ describe('joining a household', () => {
     const { base, owner, joiner, id } = await invite();
     expect((await owner.post(`${base}/join-requests/${id}/reject`)).body.status).toBe('rejected');
     expect((await joiner.post(`/api/v1/join-requests/${id}/verify`, { code: '123456' })).status).toBe(404);
+  });
+
+  it('lets a PIN-unlocked home display add a member and send an invite', async () => {
+    const { household } = await makeHousehold();
+    const base = `/api/v1/households/${household.id}`;
+    await prisma.household.update({ where: { id: household.id }, data: { pinHash: await hashSecret('4321') } });
+    const device = await prisma.device.create({ data: { householdId: household.id, name: 'Tablet', pairedAt: new Date() } });
+    const token = randomToken(32);
+    await prisma.session.create({ data: { tokenHash: sha256(token), deviceId: device.id, householdId: household.id, expiresAt: new Date(Date.now() + 86400000) } });
+    const send = (path: string, body: object) => request(app).post(`${base}${path}`).set('Cookie', `fh_session=${token}; fh_csrf=c`).set('x-csrf-token', 'c').send(body);
+    expect((await send('/members', { firstName: 'Nana', role: 'GUEST' })).status).toBe(403);
+    expect((await send('/pin/verify', { pin: '4321' })).status).toBe(200);
+    const created = await send('/members', { firstName: 'Nana', role: 'GUEST' });
+    expect(created.status).toBe(201);
+    expect((await send('/members', { firstName: 'Boss', role: 'ADULT_ADMIN' })).status).toBe(403);
+    const inv = await send('/invitations', { email: 'nana@test.local', role: 'GUEST', memberId: created.body.id });
+    expect(inv.status).toBe(201);
+    expect(inv.body.acceptUrl).toContain('/invite/');
   });
 });

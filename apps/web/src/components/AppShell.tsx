@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { CalendarDays, Gift, Images, LayoutGrid, Lock, Maximize, Moon, Settings, ShoppingBasket, Sparkles, Sun, Unlock, Users, WifiOff } from 'lucide-react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { CalendarDays, Gift, Images, LayoutGrid, Lock, Maximize, Menu, Moon, Settings, ShoppingBasket, Sparkles, Sun, Unlock, Users, WifiOff } from 'lucide-react';
 import { Screensaver } from '@/features/photos';
 import { NotificationBell } from './NotificationBell';
 import { DeviceJoinPrompt } from '@/features/join';
@@ -29,6 +29,7 @@ const NAV = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 const MOBILE_NAV = ['/', '/calendar', '/chores', '/lists', '/photos'];
+const MORE_HINT: Record<string, string> = { '/rewards': 'Points & prizes', '/family': 'Members & invites', '/settings': 'Account & app' };
 
 function useNightMode() {
   const { displayMode, autoNight, nightStart, nightEnd } = useUi();
@@ -88,6 +89,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const [queued, setQueued] = useState(0);
   const [pinOpen, setPinOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const { pathname } = useLocation();
+  const moreActive = ['/rewards', '/family', '/settings'].some((p) => pathname.startsWith(p));
   const kiosk = displayMode === 'kiosk' || isDevice;
 
   useEffect(() => {
@@ -212,11 +216,22 @@ export function AppShell({ children }: { children: ReactNode }) {
             {({ isActive }) => (<><span className={cn('rounded-full px-4 py-1 transition-all', isActive && 'bg-primary/10')}><Icon className="h-5 w-5" strokeWidth={2.2} /></span>{label}</>)}
           </NavLink>
         ))}
-        <NavLink to="/settings" className={({ isActive }) => cn('flex min-w-0 flex-1 flex-col items-center gap-1 pb-2 pt-2 text-[11px] font-semibold text-muted-foreground', isActive && 'text-primary')}>
-          <span className="px-4 py-1"><Settings className="h-5 w-5" strokeWidth={2.2} /></span>
+        <button type="button" onClick={() => setMoreOpen(true)} className={cn('flex min-w-0 flex-1 flex-col items-center gap-1 pb-2 pt-2 text-[11px] font-semibold text-muted-foreground', moreActive && 'text-primary')}>
+          <span className={cn('rounded-full px-4 py-1 transition-all', moreActive && 'bg-primary/10')}><Menu className="h-5 w-5" strokeWidth={2.2} /></span>
           More
-        </NavLink>
+        </button>
       </nav>
+      <Dialog open={moreOpen} onOpenChange={setMoreOpen} title="More">
+        <nav className="grid gap-1.5" aria-label="More">
+          {NAV.filter((n) => !MOBILE_NAV.includes(n.to)).map(({ to, label, icon: Icon }) => (
+            <NavLink key={to} to={to} onClick={() => setMoreOpen(false)} className={({ isActive }) => cn('flex items-center gap-3 rounded-xl border px-4 py-3.5 text-[15px] font-semibold transition-colors hover:bg-muted', isActive && 'border-primary/30 bg-primary/5 text-primary')}>
+              <Icon className="h-5 w-5" strokeWidth={2.2} />
+              <span className="flex-1">{label}</span>
+              <span className="text-xs font-normal text-muted-foreground">{MORE_HINT[to]}</span>
+            </NavLink>
+          ))}
+        </nav>
+      </Dialog>
       {isDevice && <DeviceJoinPrompt />}
       <PinDialog open={pinOpen} onOpenChange={setPinOpen} />
       <Screensaver enabled={kiosk} idleMinutes={5} />

@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import {
   assignableRoles,
+  DEVICE_ASSIGNABLE_ROLES,
   createDeviceSchema,
   createHouseholdSchema,
   createInvitationSchema,
@@ -163,9 +164,16 @@ export function householdRouter() {
     return memberDTO(member, c.actor);
   });
 
+  async function householdOwnerUserId(householdId: string) {
+    const owner = await prisma.householdMember.findFirst({ where: { householdId, role: 'OWNER', userId: { not: null } }, orderBy: { createdAt: 'asc' } });
+    if (!owner?.userId) throw forbidden('This household has no owner account to send invitations from');
+    return owner.userId;
+  }
+
   function assertAssignable(req: Parameters<typeof ctx>[0], role: MemberRole) {
     const a = ctx(req).actor;
-    if (a.kind !== 'member' || !assignableRoles(a.role).includes(role)) throw forbidden(`You cannot assign the ${role} role`);
+    const allowed = a.kind === 'member' ? assignableRoles(a.role) : a.elevated ? DEVICE_ASSIGNABLE_ROLES : [];
+    if (!allowed.includes(role)) throw forbidden(`You cannot assign the ${role} role`);
   }
 
   route(
@@ -202,7 +210,7 @@ export function householdRouter() {
       const target = await prisma.householdMember.findFirst({ where: { id: req.params.memberId, householdId: c.householdId } });
       if (!target) throw notFound('Member');
       const isSelf = c.actor.kind === 'member' && c.actor.memberId === target.id;
-      const canManage = c.actor.kind === 'member' && ['OWNER', 'ADULT_ADMIN'].includes(c.actor.role);
+      const canManage = c.actor.kind === 'member' ? ['OWNER', 'ADULT_ADMIN'].includes(c.actor.role) : c.actor.elevated;
       if (!canManage && !isSelf) throw forbidden();
       if (!canManage && (body.role || body.isActive !== undefined || body.accessExpiresAt !== undefined)) {
         throw forbidden('Only household admins can change roles or access');
@@ -267,7 +275,7 @@ export function householdRouter() {
 
   route(
     m,
-    { method: 'post', path: '/invitations', summary: 'Invite someone by email', tags: ['Invitations'], body: createInvitationSchema, status: 201, middleware: [requireUser, requireCap('members.manage')] },
+    { method: 'post', path: '/invitations', summary: 'Invite someone by email', tags: ['Invitations'], body: createInvitationSchema, status: 201, middleware: [requireCap('members.manage')] },
     async (req, _res, { body }) => {
       const c = ctx(req);
       assertAssignable(req, body.role);
@@ -284,7 +292,7 @@ export function householdRouter() {
           role: body.role,
           memberId: body.memberId ?? null,
           tokenHash: sha256(token),
-          invitedById: req.auth!.userId!,
+          invitedById: req.auth!.userId ?? (await householdOwnerUserId(c.householdId)),
           expiresAt: new Date(Date.now() + 7 * 86400000),
         },
       });

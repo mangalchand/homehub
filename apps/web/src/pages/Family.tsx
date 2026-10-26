@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Copy, MessageCircle, Plus, Share2, Users } from 'lucide-react';
 import { toast } from 'sonner';
-import type { MemberDTO } from '@familyhub/shared';
+import { assignableRoles, DEVICE_ASSIGNABLE_ROLES, type MemberDTO, type MemberRole } from '@familyhub/shared';
 import { api, hh } from '@/lib/api';
 import { useHhMutation, useMembers, usePoints, useRole } from '@/lib/queries';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,8 @@ const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#8b5cf6'
 const ROLE_LABEL: Record<string, string> = { OWNER: 'Owner', ADULT_ADMIN: 'Parent (admin)', ADULT: 'Adult', CHILD: 'Child', GUEST: 'Guest / caregiver' };
 
 function MemberDialog({ member, onClose }: { member: MemberDTO | null; onClose: () => void }) {
+  const { role, isDevice } = useRole();
+  const assignable: string[] = isDevice ? DEVICE_ASSIGNABLE_ROLES : assignableRoles(role as MemberRole);
   const [f, setF] = useState({ firstName: member?.firstName ?? '', displayName: member?.displayName ?? '', role: member?.role ?? 'CHILD', color: member?.color ?? COLORS[3]!, birthDate: member?.birthDate?.slice(0, 10) ?? '' });
   const [email, setEmail] = useState('');
   const [link, setLink] = useState<string | null>(null);
@@ -49,7 +51,7 @@ function MemberDialog({ member, onClose }: { member: MemberDTO | null; onClose: 
           <Field label="Display name"><Input value={f.displayName} onChange={(e) => setF({ ...f, displayName: e.target.value })} placeholder={f.firstName} /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Role"><Select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as MemberDTO['role'] })} disabled={member?.role === 'OWNER'}>{Object.entries(ROLE_LABEL).filter(([r]) => r !== 'OWNER' || member?.role === 'OWNER').map(([r, l]) => <option key={r} value={r}>{l}</option>)}</Select></Field>
+          <Field label="Role"><Select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as MemberDTO['role'] })} disabled={member?.role === 'OWNER'}>{Object.entries(ROLE_LABEL).filter(([r]) => r === member?.role || assignable.includes(r)).map(([r, l]) => <option key={r} value={r}>{l}</option>)}</Select></Field>
           <Field label="Birthday"><Input type="date" value={f.birthDate} onChange={(e) => setF({ ...f, birthDate: e.target.value })} /></Field>
         </div>
         <Field label="Color"><div className="flex gap-2">{COLORS.map((c) => <button key={c} type="button" aria-label={c} onClick={() => setF({ ...f, color: c })} className="h-8 w-8 rounded-full ring-offset-2 ring-offset-card" style={{ background: c, boxShadow: f.color === c ? `0 0 0 3px ${c}55` : undefined, outline: f.color === c ? '2px solid currentColor' : undefined }} />)}</div></Field>
