@@ -1,5 +1,6 @@
 import { Router, type Request } from 'express';
 import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
 import { acceptInvitationSchema, approveJoinSchema, can, verifyCodeSchema } from '@familyhub/shared';
 import type { JoinRequest } from '@prisma/client';
 import { config } from '../config.js';
@@ -7,7 +8,7 @@ import { prisma } from '../db.js';
 import { audit } from '../lib/audit.js';
 import { sha256 } from '../lib/crypto.js';
 import { emailAdapter } from '../lib/email.js';
-import { AppError, conflict, forbidden, notFound } from '../lib/errors.js';
+import { AppError, forbidden, notFound } from '../lib/errors.js';
 import { notify } from '../lib/notify.js';
 import { issueCode, consumeCode } from '../lib/otp.js';
 import { realtime } from '../lib/realtime.js';
@@ -91,25 +92,33 @@ async function sendRequesterCode(j: WithUser, householdName: string, enforceCool
 
 /** Adds the requester to the household once both sides have confirmed. */
 async function completeIfReady(id: string) {
-  const j = await prisma.joinRequest.findUniqueOrThrow({ where: { id }, include: { user: true, invitation: true, household: { select: { name: true } } } });
-  if (!j.requesterVerifiedAt || !j.approvedAt || j.completedAt || j.rejectedAt) return j;
-  const member = await prisma.$transaction(async (tx) => {
+  const original = await prisma.joinRequest.findUniqueOrThrow({ where: { id }, select: { householdId: true } });
+  const { done, memberId } = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM households WHERE id = ${original.householdId}::uuid FOR UPDATE`;
+    const j = await tx.joinRequest.findUniqueOrThrow({ where: { id }, include: { user: true, invitation: true, household: { select: { name: true } } } });
+    if (j.rejectedAt || j.invitation.revokedAt || j.expiresAt < new Date()) throw notFound('Join request');
+    if (!j.requesterVerifiedAt || !j.approvedAt || j.completedAt) return { done: j, memberId: null };
     const existing = await tx.householdMember.findFirst({ where: { householdId: j.householdId, userId: j.userId } });
-    if (existing) return tx.householdMember.update({ where: { id: existing.id }, data: { isActive: true } });
-    if (j.invitation.memberId) {
+    let member;
+    if (existing) member = existing.isActive && (!existing.accessExpiresAt || existing.accessExpiresAt > new Date()) ? existing : await tx.householdMember.update({ where: { id: existing.id }, data: { isActive: true, role: j.role, accessExpiresAt: null } });
+    if (!member && j.invitation.memberId) {
       const target = await tx.householdMember.findFirst({ where: { id: j.invitation.memberId, householdId: j.householdId } });
-      if (target && !target.userId) return tx.householdMember.update({ where: { id: target.id }, data: { userId: j.userId, role: j.role, isActive: true } });
+      if (target && !target.userId) member = await tx.householdMember.update({ where: { id: target.id }, data: { userId: j.userId, role: j.role, isActive: true } });
     }
-    const count = await tx.householdMember.count({ where: { householdId: j.householdId } });
-    return tx.householdMember.create({
-      data: { householdId: j.householdId, userId: j.userId, firstName: j.user.displayName.split(' ')[0] ?? j.user.displayName, displayName: j.user.displayName, role: j.role, color: MEMBER_COLORS[count % MEMBER_COLORS.length]! },
-    });
+    if (!member) {
+      const count = await tx.householdMember.count({ where: { householdId: j.householdId } });
+      member = await tx.householdMember.create({
+        data: { householdId: j.householdId, userId: j.userId, firstName: j.user.displayName.split(' ')[0] ?? j.user.displayName, displayName: j.user.displayName, role: j.role, color: MEMBER_COLORS[count % MEMBER_COLORS.length]! },
+      });
+    }
+    const completed = await tx.joinRequest.update({ where: { id }, data: { completedAt: new Date(), memberId: member.id }, include: { user: true, household: { select: { name: true } } } });
+    return { done: completed, memberId: member.id };
   });
-  const done = await prisma.joinRequest.update({ where: { id }, data: { completedAt: new Date(), memberId: member.id }, include: { user: true, household: { select: { name: true } } } });
-  realtime.publish(j.householdId, { type: 'members.changed' });
-  realtime.publish(j.householdId, { type: 'join.changed', entityId: id });
-  void emailAdapter.send({ to: j.user.email, subject: `You're in: ${j.household.name}`, text: `Your request to join "${j.household.name}" on FamilyHub was approved. Open ${config.WEB_ORIGIN} to get started.` });
-  void notify(j.householdId, { type: 'member.joined', title: `${j.user.displayName} joined the family`, url: '/family' }, { except: member.id });
+  if (!memberId) return done;
+  realtime.publish(done.householdId, { type: 'members.changed' });
+  realtime.publish(done.householdId, { type: 'join.changed', entityId: id });
+  void emailAdapter.send({ to: done.user.email, subject: `You're in: ${done.household.name}`, text: `Your request to join "${done.household.name}" on FamilyHub was approved. Open ${config.WEB_ORIGIN} to get started.` });
+  void notify(done.householdId, { type: 'member.joined', title: `${done.user.displayName} joined the family`, url: '/family' }, { except: memberId });
   return done;
 }
 
@@ -119,22 +128,32 @@ export function joinUserRouter() {
   const m: Mount = { router, prefix: '/api/v1' };
   const tags = ['Invitations'];
 
+  route(m, { method: 'get', path: '/me/invitations', summary: 'Pending home invitations addressed to my account', tags, middleware: [requireUser] }, async (req) => {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.userId! } });
+    const invitations = await prisma.invitation.findMany({
+      where: { email: user.email, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+      include: { household: { select: { name: true } }, invitedBy: { select: { displayName: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return invitations.map((i) => ({ id: i.id, householdId: i.householdId, householdName: i.household.name, invitedBy: i.invitedBy.displayName, role: i.role, expiresAt: i.expiresAt }));
+  });
+
   route(
     m,
-    { method: 'post', path: '/invitations/accept', summary: 'Ask to join a household with an invitation (needs both-side approval)', tags, body: acceptInvitationSchema, status: 201, middleware: [requireUser, codeLimiter] },
+    { method: 'post', path: '/invitations/accept', summary: 'Ask to join a household with an invitation (needs both-side approval)', tags, body: acceptInvitationSchema.or(z.object({ invitationId: z.string().uuid() })), status: 201, middleware: [requireUser, codeLimiter] },
     async (req, _res, { body }) => {
-      const inv = await prisma.invitation.findUnique({ where: { tokenHash: sha256(body.token) }, include: { household: { select: { name: true } }, joinRequest: { include: { user: true } } } });
+      const inv = await prisma.invitation.findUnique({ where: 'token' in body ? { tokenHash: sha256(body.token) } : { id: body.invitationId }, include: { household: { select: { name: true } }, joinRequest: { include: { user: true } } } });
       if (!inv || inv.revokedAt || inv.expiresAt < new Date()) throw notFound('Invitation');
       const userId = req.auth!.userId!;
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+      if (user.email !== inv.email) throw new AppError(403, 'EMAIL_MISMATCH', 'Sign in with the email address this invitation was sent to');
+      const already = await prisma.householdMember.findFirst({ where: { householdId: inv.householdId, userId, isActive: true, OR: [{ accessExpiresAt: null }, { accessExpiresAt: { gt: new Date() } }] } });
+      if (already) return { householdId: inv.householdId, householdName: inv.household.name, alreadyMember: true };
       if (inv.joinRequest) {
         if (inv.joinRequest.userId !== userId) throw notFound('Invitation');
         return { joinRequest: joinRequestDTO({ ...inv.joinRequest, household: inv.household }) };
       }
       if (inv.acceptedAt) throw notFound('Invitation');
-      const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-      if (user.email !== inv.email) throw new AppError(403, 'EMAIL_MISMATCH', `This invitation was sent to ${inv.email}`);
-      const already = await prisma.householdMember.findFirst({ where: { householdId: inv.householdId, userId, isActive: true } });
-      if (already) throw conflict('You are already a member of this household');
       const [, j] = await prisma.$transaction([
         prisma.invitation.update({ where: { id: inv.id }, data: { acceptedAt: new Date() } }),
         prisma.joinRequest.create({ data: { householdId: inv.householdId, invitationId: inv.id, userId, role: inv.role, expiresAt: new Date(Date.now() + 7 * 86400000) }, include: { user: true } }),

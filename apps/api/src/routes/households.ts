@@ -21,6 +21,7 @@ import { pairingCode, randomToken, sha256 } from '../lib/crypto.js';
 import { emailAdapter } from '../lib/email.js';
 import { AppError, badRequest, conflict, forbidden, notFound } from '../lib/errors.js';
 import { realtime } from '../lib/realtime.js';
+import { notify } from '../lib/notify.js';
 import { route, type Mount } from '../lib/route.js';
 import { memberDTO } from '../lib/serialize.js';
 import { hashSecret, verifySecret } from '../auth/passwords.js';
@@ -215,6 +216,8 @@ export function householdRouter() {
       if (!canManage && (body.role || body.isActive !== undefined || body.accessExpiresAt !== undefined)) {
         throw forbidden('Only household admins can change roles or access');
       }
+      if (body.isActive === false) throw conflict('Use Remove member to safely revoke access while keeping household history');
+      if (body.isActive !== undefined || body.role) assertAssignable(req, target.role);
       if (body.role && body.role !== target.role) {
         assertAssignable(req, body.role);
         if (target.role === 'OWNER') {
@@ -246,19 +249,25 @@ export function householdRouter() {
 
   route(
     m,
-    { method: 'delete', path: '/members/:memberId', summary: 'Remove a family member', tags: ['Members'], middleware: [requireCap('members.manage')] },
+    { method: 'delete', path: '/members/:memberId', summary: 'Deactivate a family member, preserving history and other homes', tags: ['Members'], middleware: [requireCap('members.manage')] },
     async (req) => {
       const c = ctx(req);
-      const target = await prisma.householdMember.findFirst({ where: { id: req.params.memberId, householdId: c.householdId } });
-      if (!target) throw notFound('Member');
-      if (target.role === 'OWNER') throw conflict('Transfer ownership before removing an owner');
-      assertAssignable(req, target.role);
-      await prisma.$transaction([
-        prisma.session.updateMany({ where: { userId: target.userId ?? '00000000-0000-0000-0000-000000000000', revokedAt: null, householdId: null }, data: {} }),
-        prisma.householdMember.delete({ where: { id: target.id } }),
-      ]);
+      const target = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM households WHERE id = ${c.householdId}::uuid FOR UPDATE`;
+        const member = await tx.householdMember.findFirst({ where: { id: req.params.memberId, householdId: c.householdId }, include: { user: { select: { email: true } } } });
+        if (!member) throw notFound('Member');
+        if (member.role === 'OWNER') throw conflict('An owner cannot be removed. Transfer ownership first');
+        assertAssignable(req, member.role);
+        await tx.householdMember.update({ where: { id: member.id }, data: { isActive: false } });
+        await tx.pushSubscription.deleteMany({ where: { householdId: c.householdId, memberId: member.id } });
+        await tx.invitation.updateMany({ where: { householdId: c.householdId, revokedAt: null, OR: [{ memberId: member.id }, ...(member.user ? [{ email: member.user.email }] : [])] }, data: { revokedAt: new Date() } });
+        await tx.joinRequest.updateMany({ where: { householdId: c.householdId, completedAt: null, rejectedAt: null, OR: [{ memberId: member.id }, ...(member.userId ? [{ userId: member.userId }] : []), { invitation: { memberId: member.id } }] }, data: { rejectedAt: new Date() } });
+        return member;
+      });
+      realtime.disconnectActor(c.householdId, target.id);
       await audit(req, { householdId: c.householdId, action: 'member.removed', entityType: 'member', entityId: target.id });
       realtime.publish(c.householdId, { type: 'members.changed' });
+      void notify(c.householdId, { type: 'member.removed', title: `${target.displayName} was removed from this home`, body: 'Their history is kept. Access to their other homes is unchanged.', url: '/family' });
       return undefined;
     },
   );
@@ -279,6 +288,8 @@ export function householdRouter() {
     async (req, _res, { body }) => {
       const c = ctx(req);
       assertAssignable(req, body.role);
+      const alreadyMember = await prisma.householdMember.findFirst({ where: { householdId: c.householdId, isActive: true, user: { email: body.email }, OR: [{ accessExpiresAt: null }, { accessExpiresAt: { gt: new Date() } }] } });
+      if (alreadyMember) throw conflict(`${alreadyMember.displayName} is already a member of ${c.household.name}. They can choose this home from My homes or the home selector`);
       if (body.memberId) {
         const target = await prisma.householdMember.findFirst({ where: { id: body.memberId, householdId: c.householdId } });
         if (!target) throw notFound('Member');
@@ -320,11 +331,11 @@ export function householdRouter() {
   });
 
   // ── Devices ──
-  route(m, { method: 'get', path: '/devices', summary: 'List wall displays', tags: ['Devices'], middleware: [requireCap('devices.manage')] }, async (req) => {
+  route(m, { method: 'get', path: '/devices', summary: 'List this household’s wall displays (no pairing secrets)', tags: ['Devices'] }, async (req) => {
     const devices = await prisma.device.findMany({ where: { householdId: ctx(req).householdId }, orderBy: { createdAt: 'desc' } });
     return devices.map((d) => ({
       id: d.id, name: d.name, type: d.type, pairedAt: d.pairedAt, lastSeenAt: d.lastSeenAt, revokedAt: d.revokedAt,
-      pairingPending: Boolean(d.pairingExpiresAt && d.pairingExpiresAt > new Date()),
+      pairingPending: Boolean(!d.revokedAt && d.pairingExpiresAt && d.pairingExpiresAt > new Date()),
     }));
   });
 
@@ -350,6 +361,7 @@ export function householdRouter() {
       prisma.device.update({ where: { id: device.id }, data: { revokedAt: new Date(), pairingCodeHash: null } }),
       prisma.session.updateMany({ where: { deviceId: device.id, revokedAt: null }, data: { revokedAt: new Date() } }),
     ]);
+    realtime.disconnectActor(c.householdId, device.id);
     await audit(req, { householdId: c.householdId, action: 'device.revoked', entityType: 'device', entityId: device.id });
     return undefined;
   });

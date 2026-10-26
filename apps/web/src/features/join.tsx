@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Check, Clock, Home, MailCheck, MonitorSmartphone, ShieldCheck, UserPlus, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -130,8 +131,9 @@ function Step({ n, done, title, children }: { n: number; done: boolean; title: s
 }
 
 /** The person joining: confirm with their code, then wait for the household to approve. */
-export function JoinPendingPage({ request }: { request: JoinRequestDTO }) {
+export function JoinPendingPage({ request, allowBack = false }: { request: JoinRequestDTO; allowBack?: boolean }) {
   const setHousehold = useUi((s) => s.setHousehold);
+  const navigate = useNavigate();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const cool = useCooldown();
@@ -142,9 +144,9 @@ export function JoinPendingPage({ request }: { request: JoinRequestDTO }) {
     if (r.status === 'approved') {
       setHousehold(r.householdId);
       toast.success(`Welcome to ${r.householdName ?? 'the family'}!`);
-      void queryClient.invalidateQueries();
+      void queryClient.invalidateQueries().then(() => navigate('/', { replace: true }));
     }
-  }, [r.status, r.householdId, r.householdName, setHousehold]);
+  }, [r.status, r.householdId, r.householdName, setHousehold, navigate]);
 
   const verify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,6 +212,7 @@ export function JoinPendingPage({ request }: { request: JoinRequestDTO }) {
           )}
         </Step>
       </div>
+      {allowBack && <Button variant="outline" className="w-full" asChild><Link to="/homes">Back to my homes</Link></Button>}
     </AuthFrame>
   );
 }

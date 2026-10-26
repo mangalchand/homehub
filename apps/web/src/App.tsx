@@ -21,6 +21,8 @@ const RewardsPage = lazy(() => import('./pages/Rewards'));
 const PhotosPage = lazy(() => import('./pages/Photos'));
 const FamilyPage = lazy(() => import('./pages/Family'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
+const HomesPage = lazy(() => import('./pages/Homes'));
+const HomeManagementPage = lazy(() => import('./pages/HomeManagement'));
 
 function useTheme() {
   const theme = useUi((s) => s.theme);
@@ -62,6 +64,7 @@ export function App() {
   useEffect(() => {
     const ms = me.data?.memberships ?? [];
     if (ms.length && !ms.some((m) => m.householdId === householdId)) setHousehold(ms[0]!.householdId);
+    else if (me.data && !ms.length && householdId) setHousehold(null);
   }, [me.data, householdId, setHousehold]);
 
   if (me.isPending) return <Loading />;
@@ -82,15 +85,15 @@ export function App() {
   if (loc.pathname.startsWith('/invite/')) return <Routes><Route path="/invite/:token" element={<AcceptInvite />} /></Routes>;
   if (pendingInvite()) return <AcceptInvite />;
   const joins = me.data.joinRequests ?? [];
-  const join = joins.find((j) => !j.requesterVerified) ?? (!me.data.memberships.length ? joins[0] : undefined);
-  if (join) return <JoinPendingPage request={join} />;
-  if (!me.data.memberships.length) return <OnboardingPage />;
+  const join = joins.find((j) => loc.pathname === `/join/${j.id}`) ?? (!me.data.memberships.length && loc.pathname !== '/homes' && loc.pathname !== '/create-home' ? joins[0] : undefined);
+  if (join) return <JoinPendingPage key={join.id} request={join} allowBack={me.data.kind === 'user'} />;
+  if (!me.data.memberships.length) return loc.pathname === '/create-home' ? <OnboardingPage /> : <Suspense fallback={<Loading />}><HomesPage /></Suspense>;
   if (!householdId) return <Loading />;
 
   return (
     <AppShell>
       <Suspense fallback={<Loading />}>
-        <Routes>
+        <Routes key={householdId}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/chores" element={<ChoresPage />} />
@@ -99,8 +102,10 @@ export function App() {
           <Route path="/rewards" element={<RewardsPage />} />
           <Route path="/photos" element={<PhotosPage />} />
           <Route path="/family" element={<FamilyPage />} />
+          <Route path="/homes" element={me.data.kind === 'user' ? <HomesPage /> : <Navigate to="/" replace />} />
+          <Route path="/home-management" element={<HomeManagementPage />} />
           <Route path="/settings/*" element={<SettingsPage />} />
-          <Route path="/login" element={<Navigate to="/" replace />} />
+          <Route path="/login" element={<Navigate to={me.data.kind === 'user' ? '/homes' : '/'} replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

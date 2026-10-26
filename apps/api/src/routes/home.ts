@@ -41,7 +41,8 @@ export function homeRouter() {
 
   // ── Realtime ──
   route(m, { method: 'get', path: '/stream', summary: 'Server-sent events for live household updates', tags: ['Realtime'], raw: true }, (req, res) => {
-    openSseStream(res, ctx(req).householdId);
+    const c = ctx(req);
+    openSseStream(res, c.householdId, undefined, c.actor.kind === 'member' ? c.actor.memberId : c.actor.deviceId);
   });
 
   // ── Lists ──
