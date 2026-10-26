@@ -43,6 +43,8 @@ const schema = z.object({
   /** Approved template with two body parameters ({{1}} title, {{2}} details). Empty = plain text (24h session only). */
   WHATSAPP_TEMPLATE: z.string().optional().default(''),
   WHATSAPP_TEMPLATE_LANG: z.string().default('en_US'),
+  /** Firebase service-account JSON for native Android push (FCM). Empty = disabled. */
+  FIREBASE_SERVICE_ACCOUNT_FILE: z.string().optional().default(''),
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   UPLOAD_DIR: z.string().default('./data/uploads'),
   S3_BUCKET: z.string().optional().default(''),

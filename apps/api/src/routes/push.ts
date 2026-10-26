@@ -55,6 +55,16 @@ export function pushRouter() {
     return { ok: true };
   });
 
+  route(m, { method: 'post', path: '/push/fcm-token', summary: 'Register the Android app (FCM) for push', tags: ['Notifications'], body: z.object({ token: z.string().min(20).max(4096) }), status: 201 }, async (req, _res, { body }) => {
+    const { c, memberId } = memberOf(req);
+    await prisma.pushSubscription.upsert({
+      where: { endpoint: body.token },
+      create: { householdId: c.householdId, memberId, kind: 'FCM', endpoint: body.token, userAgent: req.get('user-agent')?.slice(0, 300) ?? null },
+      update: { householdId: c.householdId, memberId, kind: 'FCM' },
+    });
+    return { ok: true };
+  });
+
   route(m, { method: 'post', path: '/push/unsubscribe', summary: 'Stop Web Push on this browser', tags: ['Notifications'], body: z.object({ endpoint: z.string().url().max(2000) }) }, async (req, _res, { body }) => {
     const { memberId } = memberOf(req);
     await prisma.pushSubscription.deleteMany({ where: { endpoint: body.endpoint, memberId } });

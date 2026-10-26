@@ -6,6 +6,7 @@ import { config } from '../config.js';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { realtime } from './realtime.js';
+import { fcmConfigured, sendFcm } from './fcm.js';
 
 export interface MemberNotificationPrefs {
   push?: boolean;
@@ -126,6 +127,17 @@ async function deliverExternal(householdId: string, recipients: { id: string; pr
       );
     } catch (err) {
       logger.error({ err }, 'web push delivery failed');
+    }
+    if (fcmConfigured()) {
+      const tokens = await prisma.pushSubscription.findMany({ where: { householdId, memberId: { in: pushIds }, kind: 'FCM' } });
+      for (const t of tokens) {
+        try {
+          const ok = await sendFcm(t.endpoint, { title: n.title, body: n.body ?? '', url: n.url ?? '/', tag: n.type });
+          if (!ok) await prisma.pushSubscription.delete({ where: { id: t.id } }).catch(() => undefined);
+        } catch (err) {
+          logger.warn({ err }, 'fcm push failed');
+        }
+      }
     }
   }
   if (whatsappConfigured()) {

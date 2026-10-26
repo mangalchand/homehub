@@ -140,6 +140,7 @@ git archive --format=tar.gz -o "$TMP/source.tar.gz" HEAD
 } > "$TMP/app.env"
 printf '%s' "$DB_HOST" > "$TMP/db-host"; printf '%s' "$SITE_HOST" > "$TMP/site-host"
 cp "$HERE/remote-deploy.sh" "$TMP/"; cp "$PW_FILE" "$TMP/dbpw"
+[ -f "$STATE/firebase-service-account.json" ] && cp "$STATE/firebase-service-account.json" "$TMP/"
 
 step "Uploading revision $REV to $IP"
 ssh "${SSH[@]}" "$T" 'rm -rf /opt/familyhub/incoming && mkdir -p /opt/familyhub/incoming'

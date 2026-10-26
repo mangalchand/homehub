@@ -4,3 +4,4 @@ android/build
 android/.gradle
 *.keystore
 keystore.properties
+android/app/google-services.json

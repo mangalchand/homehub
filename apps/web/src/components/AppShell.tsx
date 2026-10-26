@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { CalendarDays, Gift, Images, LayoutGrid, Lock, Maximize, Moon, Settings, ShoppingBasket, Sparkles, Sun, Unlock, Users, WifiOff } from 'lucide-react';
 import { Screensaver } from '@/features/photos';
 import { NotificationBell } from './NotificationBell';
+import { registerNativePush } from '@/lib/nativePush';
 import { Avatar } from './ui/misc';
 import { toast } from 'sonner';
 import { api, hh } from '@/lib/api';
@@ -96,6 +97,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.classList.toggle('night', night);
   }, [night]);
+
+  useEffect(() => {
+    if (householdId && !isDevice) void registerNativePush(householdId, (url) => navigate(url)).catch(() => undefined);
+  }, [householdId, isDevice, navigate]);
 
   const lock = async () => {
     await api(hh(householdId!, '/pin/lock'), { method: 'POST' });

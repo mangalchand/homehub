@@ -219,6 +219,8 @@ Write-Lf (Join-Path $Tmp 'db-host') $DbHost
 Write-Lf (Join-Path $Tmp 'site-host') $SiteHost
 Write-Lf (Join-Path $Tmp 'remote-deploy.sh') ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'remote-deploy.sh')))
 Copy-Item $PwFile (Join-Path $Tmp 'dbpw')
+$Sa = Join-Path $State 'firebase-service-account.json'
+if (Test-Path $Sa) { Copy-Item $Sa (Join-Path $Tmp 'firebase-service-account.json') }
 
 Step "Uploading revision $Rev to $Ip"
 & ssh @Ssh $Target 'rm -rf /opt/familyhub/incoming && mkdir -p /opt/familyhub/incoming'

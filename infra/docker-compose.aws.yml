@@ -13,7 +13,7 @@ services:
       COOKIE_SECURE: 'true'
       TRUST_PROXY: '2'
       UPLOAD_DIR: /data/uploads
-    volumes: [uploads:/data/uploads]
+    volumes: [uploads:/data/uploads, ./secrets:/run/familyhub:ro]
     restart: unless-stopped
     logging: { driver: json-file, options: { max-size: 10m, max-file: '5' } }
 
@@ -25,7 +25,7 @@ services:
       NODE_ENV: production
       ENABLE_DEMO_PROVIDER: 'false'
       UPLOAD_DIR: /data/uploads
-    volumes: [uploads:/data/uploads]
+    volumes: [uploads:/data/uploads, ./secrets:/run/familyhub:ro]
     healthcheck: { disable: true }
     depends_on: [api]
     restart: unless-stopped

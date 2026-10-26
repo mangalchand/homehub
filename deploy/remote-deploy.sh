@@ -12,6 +12,8 @@ rm -rf src && mkdir src && tar -xzf "$IN/source.tar.gz" -C src
 cp src/infra/docker-compose.aws.yml docker-compose.yml
 cp src/infra/Caddyfile Caddyfile
 
+mkdir -p secrets
+if [ -f "$IN/firebase-service-account.json" ]; then install -m 644 "$IN/firebase-service-account.json" secrets/firebase-service-account.json; fi
 SITE_HOST=$(cat "$IN/site-host")
 DB_HOST=$(cat "$IN/db-host")
 DB_NAME=$(sed -n 's/^DB_NAME=//p' "$IN/app.env")
@@ -29,6 +31,7 @@ KEY=$( [ -f .env ] && sed -n 's/^ENCRYPTION_KEY=//p' .env || true )
   echo "SITE_HOST=${SITE_HOST}"
   echo "WEB_ORIGIN=https://${SITE_HOST}"
   echo "API_PUBLIC_URL=https://${SITE_HOST}"
+  [ -f secrets/firebase-service-account.json ] && echo "FIREBASE_SERVICE_ACCOUNT_FILE=/run/familyhub/firebase-service-account.json"
 } > .env.new)
 mv .env.new .env
 chmod 600 .env

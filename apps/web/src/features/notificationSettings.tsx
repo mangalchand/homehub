@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { api, hh } from '@/lib/api';
 import { chime, currentPushSubscription, disablePush, enablePush, pushSupported, setSoundEnabled, soundEnabled, useNotificationSettings, useSaveNotificationSettings } from '@/lib/notifications';
 import { useHid } from '@/lib/queries';
+import { isNativeApp } from '@/lib/nativePush';
 import { queryClient } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle, IconTile } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,9 +45,9 @@ export function NotificationsSection() {
     <Card>
       <CardHeader><CardTitle><IconTile className="bg-rose-500/10 text-rose-600"><Bell /></IconTile> Notifications</CardTitle></CardHeader>
       <CardContent className="space-y-5">
-        <Row icon={<Bell className="h-4 w-4" />} title="Push notifications on this device" body={pushSupported() ? `New events, reminders, chores, rewards, photos and notes — even when the app is closed.${settings?.pushDevices ? ` Active on ${settings.pushDevices} device${settings.pushDevices === 1 ? '' : 's'}.` : ''}` : 'Not supported in this browser. On Android use Chrome; on iPhone add FamilyHub to the Home Screen.'}>
+        {isNativeApp() ? <Row icon={<Bell className="h-4 w-4" />} title="Push notifications (Android app)" body="Enabled through Android. Manage in Android Settings → Apps → FamilyHub Pro → Notifications."><span /></Row> : <Row icon={<Bell className="h-4 w-4" />} title="Push notifications on this device" body={pushSupported() ? `New events, reminders, chores, rewards, photos and notes — even when the app is closed.${settings?.pushDevices ? ` Active on ${settings.pushDevices} device${settings.pushDevices === 1 ? '' : 's'}.` : ''}` : 'Not supported in this browser. On Android use Chrome; on iPhone add FamilyHub to the Home Screen.'}>
           <Switch checked={onThisDevice} disabled={busy || !pushSupported() || !settings} onCheckedChange={(v) => void togglePush(v)} label="Push notifications" />
-        </Row>
+        </Row>}
         <Row icon={<Volume2 className="h-4 w-4" />} title="Chime sound" body="Ring when a new notification arrives while the app is open.">
           <Switch checked={sound} onCheckedChange={(v) => { setSound(v); setSoundEnabled(v); if (v) chime(); }} label="Chime sound" />
         </Row>
