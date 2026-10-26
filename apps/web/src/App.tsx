@@ -10,6 +10,7 @@ import { AppShell } from './components/AppShell';
 import { Spinner } from './components/ui/misc';
 import { LoginPage } from './pages/Login';
 import { OnboardingPage } from './pages/Onboarding';
+import { AcceptInvite, InviteLanding, pendingInvite } from './pages/Invite';
 
 const DashboardPage = lazy(() => import('./pages/Dashboard'));
 const CalendarPage = lazy(() => import('./pages/Calendar'));
@@ -71,10 +72,13 @@ export function App() {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/invite/:token" element={<InviteLanding />} />
         <Route path="*" element={<Navigate to="/login" state={{ from: loc.pathname }} replace />} />
       </Routes>
     );
   }
+  if (loc.pathname.startsWith('/invite/')) return <Routes><Route path="/invite/:token" element={<AcceptInvite />} /></Routes>;
+  if (pendingInvite()) return <AcceptInvite />;
   if (!me.data.memberships.length) return <OnboardingPage />;
   if (!householdId) return <Loading />;
 

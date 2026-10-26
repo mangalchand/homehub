@@ -10,9 +10,9 @@ import { cn } from '@/lib/utils';
 
 type Mode = 'login' | 'register' | 'device';
 
-export function LoginPage() {
-  const [mode, setMode] = useState<Mode>('login');
-  const [form, setForm] = useState({ email: '', password: '', displayName: '', code: '' });
+export function LoginPage({ initialMode = 'login', initialEmail = '', banner }: { initialMode?: Mode; initialEmail?: string; banner?: string } = {}) {
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const [form, setForm] = useState({ email: initialEmail, password: '', displayName: '', code: '' });
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -42,6 +42,7 @@ export function LoginPage() {
         </div>
         <Card>
           <CardContent className="p-6">
+            {banner && <p className="mb-4 rounded-xl bg-primary/10 p-3 text-sm text-foreground">{banner}</p>}
             <div className="mb-6 grid grid-cols-3 rounded-xl bg-muted p-1 text-sm" role="tablist">
               {(['login', 'register', 'device'] as Mode[]).map((m) => (
                 <button key={m} role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className={cn('rounded-lg py-1.5 font-medium text-muted-foreground', mode === m && 'bg-card text-foreground shadow-sm')}>

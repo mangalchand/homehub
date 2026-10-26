@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Users } from 'lucide-react';
+import { Copy, MessageCircle, Plus, Share2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MemberDTO } from '@familyhub/shared';
 import { api, hh } from '@/lib/api';
@@ -16,14 +16,32 @@ const ROLE_LABEL: Record<string, string> = { OWNER: 'Owner', ADULT_ADMIN: 'Paren
 function MemberDialog({ member, onClose }: { member: MemberDTO | null; onClose: () => void }) {
   const [f, setF] = useState({ firstName: member?.firstName ?? '', displayName: member?.displayName ?? '', role: member?.role ?? 'CHILD', color: member?.color ?? COLORS[3]!, birthDate: member?.birthDate?.slice(0, 10) ?? '' });
   const [email, setEmail] = useState('');
-  const save = useHhMutation<void>((hid) => {
+  const [link, setLink] = useState<string | null>(null);
+  const save = useHhMutation<void, { id?: string }>((hid) => {
     const body = { ...f, displayName: f.displayName || f.firstName, birthDate: f.birthDate || null };
     return member ? api(hh(hid, `/members/${member.id}`), { method: 'PATCH', body }) : api(hh(hid, '/members'), { method: 'POST', body });
   }, [['members']]);
-  const invite = useHhMutation<void>((hid) => api(hh(hid, '/invitations'), { method: 'POST', body: { email, role: f.role, memberId: member?.id } }), [['members']]);
+  const invite = useHhMutation<string | undefined, { acceptUrl: string }>((hid, memberId) => api(hh(hid, '/invitations'), { method: 'POST', body: { email, role: f.role, memberId } }), [['members']]);
+  const sendInvite = (memberId?: string) => invite.mutate(memberId, { onSuccess: (r) => { setLink(r.acceptUrl); setEmail(''); }, onError: (er) => toast.error((er as Error).message) });
+  const shareText = link ? `Join our family on FamilyHub: ${link}` : '';
+  if (link) {
+    return (
+      <Dialog open onOpenChange={(o) => !o && onClose()} title="Invitation ready" description="Send this link to them. It works once and expires in 7 days. They create an account with the email you entered.">
+        <div className="space-y-3">
+          <Input readOnly value={link} onFocus={(e) => e.target.select()} />
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Button asChild className="bg-[#25D366] text-white hover:bg-[#1ebe5b]"><a href={`https://wa.me/?text=${encodeURIComponent(shareText)}`} target="_blank" rel="noreferrer"><MessageCircle /> WhatsApp</a></Button>
+            <Button variant="secondary" onClick={() => void navigator.clipboard.writeText(link).then(() => toast.success('Link copied'))}><Copy /> Copy link</Button>
+            {'share' in navigator && <Button variant="secondary" onClick={() => void navigator.share({ title: 'FamilyHub invitation', text: shareText }).catch(() => undefined)}><Share2 /> Share…</Button>}
+          </div>
+          <Button variant="ghost" className="w-full" onClick={onClose}>Done</Button>
+        </div>
+      </Dialog>
+    );
+  }
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()} title={member ? `Edit ${member.displayName}` : 'Add family member'} description="Profiles don’t need an email. Invite someone to give them their own login.">
-      <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(undefined, { onSuccess: onClose, onError: (er) => toast.error((er as Error).message) }); }}>
+      <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(undefined, { onSuccess: (r) => (!member && email && r?.id ? sendInvite(r.id) : onClose()), onError: (er) => toast.error((er as Error).message) }); }}>
         <div className="grid grid-cols-2 gap-3">
           <Field label="First name"><Input value={f.firstName} onChange={(e) => setF({ ...f, firstName: e.target.value })} required autoFocus /></Field>
           <Field label="Display name"><Input value={f.displayName} onChange={(e) => setF({ ...f, displayName: e.target.value })} placeholder={f.firstName} /></Field>
@@ -33,11 +51,12 @@ function MemberDialog({ member, onClose }: { member: MemberDTO | null; onClose: 
           <Field label="Birthday"><Input type="date" value={f.birthDate} onChange={(e) => setF({ ...f, birthDate: e.target.value })} /></Field>
         </div>
         <Field label="Color"><div className="flex gap-2">{COLORS.map((c) => <button key={c} type="button" aria-label={c} onClick={() => setF({ ...f, color: c })} className="h-8 w-8 rounded-full ring-offset-2 ring-offset-card" style={{ background: c, boxShadow: f.color === c ? `0 0 0 3px ${c}55` : undefined, outline: f.color === c ? '2px solid currentColor' : undefined }} />)}</div></Field>
-        <Button type="submit" className="w-full">Save</Button>
+        {!member && <Field label="Email (optional)" hint="Add an email to also create an invite link so they get their own login."><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" /></Field>}
+        <Button type="submit" className="w-full">{!member && email ? 'Save & create invite link' : 'Save'}</Button>
       </form>
       {member && !member.hasLogin && (
-        <form className="mt-6 space-y-2 border-t pt-4" onSubmit={(e) => { e.preventDefault(); invite.mutate(undefined, { onSuccess: () => { toast.success('Invitation created'); setEmail(''); }, onError: (er) => toast.error((er as Error).message) }); }}>
-          <Field label="Invite to sign in" hint="They’ll get a link to create a login linked to this profile."><div className="flex gap-2"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" required /><Button type="submit" variant="secondary">Invite</Button></div></Field>
+        <form className="mt-6 space-y-2 border-t pt-4" onSubmit={(e) => { e.preventDefault(); sendInvite(member.id); }}>
+          <Field label="Invite to sign in" hint="You’ll get a link to send them on WhatsApp or anywhere."><div className="flex gap-2"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" required /><Button type="submit" variant="secondary">Invite</Button></div></Field>
         </form>
       )}
     </Dialog>
