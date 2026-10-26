@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { config } from '../config.js';
 import { prisma } from '../db.js';
-import { forbidden, unauthorized } from '../lib/errors.js';
+import { AppError, forbidden, unauthorized } from '../lib/errors.js';
 import { randomToken, safeEqual, sha256 } from '../lib/crypto.js';
 
 export const SESSION_COOKIE = 'fh_session';
@@ -15,6 +15,8 @@ export interface AuthInfo {
   /** Household bound to a device session. */
   deviceHouseholdId: string | null;
   pinElevatedUntil: Date | null;
+  /** False until a personal account confirms its email with a code. Always true for devices. */
+  emailVerified: boolean;
 }
 
 declare global {
@@ -70,7 +72,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     if (!token) return next();
     const session = await prisma.session.findUnique({
       where: { tokenHash: sha256(token) },
-      include: { device: { select: { revokedAt: true } } },
+      include: { device: { select: { revokedAt: true } }, user: { select: { emailVerifiedAt: true } } },
     });
     const now = new Date();
     if (!session || session.revokedAt || session.expiresAt < now || session.device?.revokedAt) return next();
@@ -80,6 +82,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       deviceId: session.deviceId,
       deviceHouseholdId: session.householdId,
       pinElevatedUntil: session.pinElevatedUntil,
+      emailVerified: !session.userId || Boolean(session.user?.emailVerifiedAt),
     };
     if (now.getTime() - session.lastSeenAt.getTime() > 5 * 60000) {
       void prisma.session.update({ where: { id: session.id }, data: { lastSeenAt: now } }).catch(() => undefined);
@@ -98,10 +101,22 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   next();
 }
 
-export function requireUser(req: Request, _res: Response, next: NextFunction) {
+export const emailNotVerified = () => new AppError(403, 'EMAIL_NOT_VERIFIED', 'Confirm your email with the code we sent before continuing');
+
+/** Personal account, even if the email is not confirmed yet (used by the verification endpoints). */
+export function requireSignedInUser(req: Request, _res: Response, next: NextFunction) {
   if (!req.auth) return next(unauthorized());
   if (!req.auth.userId) return next(forbidden('This action requires a personal account, not a shared display'));
   next();
+}
+
+/** Personal account with a confirmed email. */
+export function requireUser(req: Request, res: Response, next: NextFunction) {
+  requireSignedInUser(req, res, (err?: unknown) => {
+    if (err) return next(err);
+    if (!req.auth!.emailVerified) return next(emailNotVerified());
+    next();
+  });
 }
 
 /** Double-submit CSRF protection for cookie-authenticated, state-changing requests. */

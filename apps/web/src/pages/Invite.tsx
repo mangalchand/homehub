@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { queryClient } from '@/lib/queryClient';
-import { useUi } from '@/store/ui';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/misc';
 import { LoginPage } from './Login';
@@ -25,14 +23,13 @@ export function InviteLanding() {
   }, [token]);
   if (error) return <LoginPage banner="This invitation link has expired or was already used. Ask for a new one." />;
   if (!preview) return <div className="flex h-screen items-center justify-center"><Spinner /></div>;
-  return <LoginPage initialMode="register" initialEmail={preview.email} banner={`${preview.invitedBy} invited you to join “${preview.householdName}”. Create your account with ${preview.email} (or sign in if you already have one).`} />;
+  return <LoginPage initialMode="register" initialEmail={preview.email} banner={`${preview.invitedBy} invited you to join “${preview.householdName}”. Create your account with ${preview.email} (or sign in if you already have one). We’ll email you a code to confirm.`} />;
 }
 
 /** Signed in with a pending invite: accept it and switch to that household. */
 export function AcceptInvite() {
   const { token: param } = useParams();
   const navigate = useNavigate();
-  const setHousehold = useUi((s) => s.setHousehold);
   const [error, setError] = useState<string | null>(null);
   const ran = useRef(false);
   useEffect(() => {
@@ -40,16 +37,14 @@ export function AcceptInvite() {
     ran.current = true;
     const token = param ?? pendingInvite();
     if (!token) return navigate('/', { replace: true });
-    api<{ householdId: string }>('/api/v1/invitations/accept', { method: 'POST', body: { token } })
-      .then(async (r) => {
+    api('/api/v1/invitations/accept', { method: 'POST', body: { token } })
+      .then(async () => {
         clearInvite();
-        setHousehold(r.householdId);
-        await queryClient.invalidateQueries();
-        toast.success('Welcome to the family!');
+        await queryClient.invalidateQueries({ queryKey: ['me'] });
         navigate('/', { replace: true });
       })
       .catch((e: Error) => { clearInvite(); setError(e.message); });
-  }, [param, navigate, setHousehold]);
+  }, [param, navigate]);
   if (!error) return <div className="flex h-screen items-center justify-center"><Spinner /></div>;
   return (
     <div className="flex h-screen flex-col items-center justify-center gap-4 p-6 text-center">

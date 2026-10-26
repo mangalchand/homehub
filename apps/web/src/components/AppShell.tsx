@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { CalendarDays, Gift, Images, LayoutGrid, Lock, Maximize, Moon, Settings, ShoppingBasket, Sparkles, Sun, Unlock, Users, WifiOff } from 'lucide-react';
 import { Screensaver } from '@/features/photos';
 import { NotificationBell } from './NotificationBell';
+import { DeviceJoinPrompt } from '@/features/join';
 import { registerNativePush } from '@/lib/nativePush';
 import { Avatar } from './ui/misc';
 import { toast } from 'sonner';
@@ -110,9 +111,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-full min-h-screen">
       <aside className={cn('sticky top-0 hidden h-screen shrink-0 flex-col p-3 md:flex', kiosk ? 'w-[88px]' : 'w-64')}>
-        <div className="glass flex h-full flex-col rounded-[28px] p-3 shadow-soft">
+        <div className="flex h-full flex-col rounded-3xl border border-border/80 bg-card p-3 shadow-soft">
         <div className="mb-6 flex items-center gap-3 px-1.5 pt-1.5">
-          <img src="/icon.svg" alt="" className="h-10 w-10 rounded-2xl shadow-glow" />
+          <img src="/icon.svg" alt="" className="h-10 w-10 rounded-2xl" />
           {!kiosk && (
             <div className="min-w-0">
               <p className="truncate font-display text-[15px] font-extrabold tracking-tight">FamilyHub <span className="text-gradient">Pro</span></p>
@@ -138,7 +139,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               end={end}
               title={label}
               className={({ isActive }) =>
-                cn('group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-all hover:bg-primary/5 hover:text-foreground', kiosk && 'justify-center px-0 py-3.5', isActive && 'brand-gradient text-white shadow-glow hover:bg-transparent hover:text-white')
+                cn('group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground', kiosk && 'justify-center px-0 py-3.5', isActive && 'bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary')
               }
             >
               <Icon className={kiosk ? 'h-6 w-6' : 'h-[19px] w-[19px]'} strokeWidth={2.2} />
@@ -189,9 +190,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             {!online ? 'Offline — showing saved data. Changes will sync when you reconnect.' : `Syncing ${queued} offline change${queued === 1 ? '' : 's'}…`}
           </div>
         )}
-        <header className="sticky top-0 z-30 flex items-center gap-3 px-4 pb-1 pt-[max(0.75rem,env(safe-area-inset-top))] md:absolute md:right-6 md:top-5 md:p-0">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border/70 bg-background/85 px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] backdrop-blur-xl md:absolute md:right-6 md:top-5 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0">
           <div className="flex min-w-0 flex-1 items-center gap-2.5 md:hidden">
-            <img src="/icon.svg" alt="" className="h-9 w-9 rounded-xl shadow-glow" />
+            <img src="/icon.svg" alt="" className="h-9 w-9 rounded-xl" />
             <div className="min-w-0">
               <p className="truncate font-display text-[15px] font-extrabold leading-tight">FamilyHub <span className="text-gradient">Pro</span></p>
               <p className="truncate text-xs text-muted-foreground">{household?.name}</p>
@@ -199,23 +200,24 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           {!isDevice && <NotificationBell />}
         </header>
-        <main className={cn('mx-auto w-full max-w-[1600px] flex-1 px-4 pb-32 pt-2 md:p-6 md:pb-6 md:pr-24', kiosk && 'md:p-5')}>{children}</main>
+        <main className={cn('mx-auto w-full max-w-[1600px] flex-1 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 md:p-6 md:pb-6 md:pr-24', kiosk && 'md:p-5')}>{children}</main>
         <span className="sr-only" aria-live="polite">
           {live ? 'Live updates connected' : 'Live updates reconnecting'}
         </span>
       </div>
 
-      <nav className="glass fixed inset-x-3 bottom-3 z-30 flex justify-around rounded-[26px] px-1 pb-[env(safe-area-inset-bottom)] shadow-lift md:hidden" aria-label="Mobile">
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-border/80 bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden" aria-label="Mobile">
         {NAV.filter((n) => MOBILE_NAV.includes(n.to)).map(({ to, label, icon: Icon, end }) => (
-          <NavLink key={to} to={to} end={end} className={({ isActive }) => cn('flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold text-muted-foreground transition-colors', isActive && 'text-primary')}>
-            {({ isActive }) => (<><span className={cn('rounded-xl px-3 py-1 transition-all', isActive && 'bg-primary/10')}><Icon className="h-5 w-5" strokeWidth={2.2} /></span>{label}</>)}
+          <NavLink key={to} to={to} end={end} className={({ isActive }) => cn('flex min-w-0 flex-1 flex-col items-center gap-1 pb-2 pt-2 text-[11px] font-semibold text-muted-foreground transition-colors', isActive && 'text-primary')}>
+            {({ isActive }) => (<><span className={cn('rounded-full px-4 py-1 transition-all', isActive && 'bg-primary/10')}><Icon className="h-5 w-5" strokeWidth={2.2} /></span>{label}</>)}
           </NavLink>
         ))}
-        <NavLink to="/settings" className={({ isActive }) => cn('flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold text-muted-foreground', isActive && 'text-primary')}>
-          <span className="px-3 py-1"><Settings className="h-5 w-5" strokeWidth={2.2} /></span>
+        <NavLink to="/settings" className={({ isActive }) => cn('flex min-w-0 flex-1 flex-col items-center gap-1 pb-2 pt-2 text-[11px] font-semibold text-muted-foreground', isActive && 'text-primary')}>
+          <span className="px-4 py-1"><Settings className="h-5 w-5" strokeWidth={2.2} /></span>
           More
         </NavLink>
       </nav>
+      {isDevice && <DeviceJoinPrompt />}
       <PinDialog open={pinOpen} onOpenChange={setPinOpen} />
       <Screensaver enabled={kiosk} idleMinutes={5} />
     </div>

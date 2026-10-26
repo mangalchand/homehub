@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select } from '@/components/ui/input';
 import { Avatar, Badge, EmptyState, PageHeader } from '@/components/ui/misc';
+import { JoinRequestsCard } from '@/features/join';
 
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#8b5cf6', '#ef4444', '#14b8a6'];
 const ROLE_LABEL: Record<string, string> = { OWNER: 'Owner', ADULT_ADMIN: 'Parent (admin)', ADULT: 'Adult', CHILD: 'Child', GUEST: 'Guest / caregiver' };
@@ -27,7 +28,7 @@ function MemberDialog({ member, onClose }: { member: MemberDTO | null; onClose: 
   const shareText = link ? `Join our family on FamilyHub: ${link}` : '';
   if (link) {
     return (
-      <Dialog open onOpenChange={(o) => !o && onClose()} title="Invitation ready" description={`${emailed ? 'We also emailed this link to them. ' : ''}Send this link to them. It works once and expires in 7 days. They create an account with the email you entered.`}>
+      <Dialog open onOpenChange={(o) => !o && onClose()} title="Invitation ready" description={`${emailed ? 'We also emailed this link to them. ' : ''}Send this link to them. They sign up with the email you entered and confirm it with a code. Then you approve them here with a code we email you, or tap Approve on the home display. The link works once and expires in 7 days.`}>
         <div className="space-y-3">
           <Input readOnly value={link} onFocus={(e) => e.target.select()} />
           <div className="grid gap-2 sm:grid-cols-3">
@@ -72,14 +73,15 @@ export default function FamilyPage() {
   return (
     <div>
       <PageHeader title="Family" subtitle="Profiles, colors and who can do what." actions={isAdmin && <Button onClick={() => setEditing('new')}><Plus /> Add member</Button>} />
+      {isAdmin && <JoinRequestsCard className="mb-5" />}
       {members.length === 0 ? <Card><EmptyState icon={<Users />} title="No members" /></Card> : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
           {members.map((m) => (
             <Card key={m.id} className={isAdmin ? 'cursor-pointer transition-shadow hover:shadow-md' : ''} onClick={() => isAdmin && setEditing(m)}>
               <CardContent className="flex items-center gap-4 p-4">
-                <Avatar name={m.displayName} color={m.color} size={52} />
+                <Avatar name={m.displayName} color={m.color} size={48} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-lg font-semibold">{m.displayName}</p>
+                  <p className="text-[17px] font-semibold leading-snug">{m.displayName}</p>
                   <div className="mt-1 flex flex-wrap gap-1.5"><Badge tone="muted">{ROLE_LABEL[m.role]}</Badge>{m.hasLogin && <Badge tone="success">Has login</Badge>}{!m.isActive && <Badge tone="danger">Inactive</Badge>}</div>
                 </div>
                 {(points.find((p) => p.memberId === m.id)?.balance ?? 0) > 0 && <span className="text-sm font-semibold text-amber-600">{points.find((p) => p.memberId === m.id)!.balance} pts</span>}

@@ -16,7 +16,7 @@ export async function resetDb() {
 let n = 0;
 export async function makeUser(name: string) {
   n++;
-  return prisma.user.create({ data: { email: `${name.toLowerCase()}${n}@test.local`, displayName: name, passwordHash: await hashSecret(PASSWORD) } });
+  return prisma.user.create({ data: { email: `${name.toLowerCase()}${n}@test.local`, displayName: name, passwordHash: await hashSecret(PASSWORD), emailVerifiedAt: new Date() } });
 }
 
 export async function makeHousehold(name = 'Test Family') {

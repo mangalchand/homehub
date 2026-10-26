@@ -17,6 +17,7 @@ const INVALIDATIONS: Record<string, string[][]> = {
   notifications: [['notifications']],
   members: [['members'], ['household']],
   household: [['household'], ['me']],
+  join: [['join'], ['me']],
 };
 
 /** Subscribes to the household SSE stream and invalidates affected queries. Reconnects with backoff. */

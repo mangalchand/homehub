@@ -33,27 +33,27 @@ export function LoginPage({ initialMode = 'login', initialEmail = '', banner }: 
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-50 via-background to-amber-50 p-4 dark:from-indigo-950/40 dark:to-background">
+    <div className="flex min-h-screen items-start justify-center px-4 pb-10 pt-[max(2.5rem,env(safe-area-inset-top))] sm:items-center sm:py-10">
       <div className="w-full max-w-md">
-        <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <img src="/icon.svg" alt="" className="h-16 w-16 drop-shadow" />
-          <h1 className="text-3xl font-bold tracking-tight">FamilyHub Pro</h1>
-          <p className="text-muted-foreground">One calm place for your family’s days.</p>
+        <div className="mb-7 flex flex-col items-center gap-3 text-center">
+          <img src="/icon.svg" alt="" className="h-14 w-14 rounded-2xl" />
+          <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight">FamilyHub Pro</h1>
+          <p className="text-[15px] text-muted-foreground">One calm place for your family’s days.</p>
         </div>
         <Card>
-          <CardContent className="p-6">
-            {banner && <p className="mb-4 rounded-xl bg-primary/10 p-3 text-sm text-foreground">{banner}</p>}
-            <div className="mb-6 grid grid-cols-3 rounded-xl bg-muted p-1 text-sm" role="tablist">
+          <CardContent className="p-5 sm:p-6">
+            {banner && <p className="mb-5 rounded-xl border border-primary/20 bg-primary/5 p-3.5 text-sm leading-relaxed text-foreground">{banner}</p>}
+            <div className="mb-6 grid grid-cols-3 gap-1 rounded-xl bg-muted p-1 text-[13px] sm:text-sm" role="tablist">
               {(['login', 'register', 'device'] as Mode[]).map((m) => (
-                <button key={m} role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className={cn('rounded-lg py-1.5 font-medium text-muted-foreground', mode === m && 'bg-card text-foreground shadow-sm')}>
-                  {m === 'login' ? 'Sign in' : m === 'register' ? 'Create account' : 'Wall display'}
+                <button key={m} role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className={cn('rounded-lg px-1 py-2 font-semibold leading-tight text-muted-foreground transition-colors', mode === m && 'bg-card text-foreground shadow-sm')}>
+                  {m === 'login' ? 'Sign in' : m === 'register' ? 'Create account' : 'Home display'}
                 </button>
               ))}
             </div>
             <form onSubmit={submit} className="space-y-4">
               {mode === 'device' ? (
                 <>
-                  <div className="flex gap-3 rounded-xl bg-muted/60 p-3 text-sm text-muted-foreground">
+                  <div className="flex gap-3 rounded-xl bg-muted/70 p-3.5 text-sm leading-relaxed text-muted-foreground">
                     <MonitorSmartphone className="h-5 w-5 shrink-0" />
                     In FamilyHub on your phone, open Settings → Devices → “Pair a display” and enter the code shown there.
                   </div>
@@ -71,7 +71,7 @@ export function LoginPage({ initialMode = 'login', initialEmail = '', banner }: 
                   <Field label="Email">
                     <Input type="email" value={form.email} onChange={set('email')} autoComplete="email" required autoFocus />
                   </Field>
-                  <Field label="Password" hint={mode === 'register' ? 'At least 10 characters' : undefined}>
+                  <Field label="Password" hint={mode === 'register' ? 'At least 10 characters. We’ll email you a 6-digit code to confirm your account.' : undefined}>
                     <Input type="password" value={form.password} onChange={set('password')} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'register' ? 10 : undefined} required />
                   </Field>
                 </>

@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import type { Household, HouseholdMember } from '@prisma/client';
 import { can, type Actor, type Capability } from '@familyhub/shared';
 import { prisma } from '../db.js';
+import { emailNotVerified } from './session.js';
 import { forbidden, notFound, unauthorized } from '../lib/errors.js';
 
 export interface HouseholdContext {
@@ -48,6 +49,7 @@ export async function householdContext(req: Request, _res: Response, next: NextF
       return next();
     }
 
+    if (!auth.emailVerified) throw emailNotVerified();
     const member = await prisma.householdMember.findFirst({
       where: { householdId, userId: auth.userId!, isActive: true },
     });

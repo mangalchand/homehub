@@ -5,7 +5,7 @@ import { cn, contrastText, initials } from '@/lib/utils';
 export const Badge = ({ className, tone = 'default', ...p }: HTMLAttributes<HTMLSpanElement> & { tone?: 'default' | 'success' | 'warning' | 'danger' | 'muted' }) => (
   <span
     className={cn(
-      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
+      'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold',
       {
         default: 'bg-primary/10 text-primary',
         success: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
@@ -50,7 +50,7 @@ export function EmptyState({ icon, title, body, action }: { icon: ReactNode; tit
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
       <div className="rounded-2xl bg-primary/10 p-4 text-primary">{icon}</div>
-      <p className="font-medium">{title}</p>
+      <p className="font-semibold">{title}</p>
       {body && <p className="max-w-sm text-sm text-muted-foreground">{body}</p>}
       {action}
     </div>
@@ -61,12 +61,12 @@ export const Spinner = ({ className }: { className?: string }) => <span classNam
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-      <div>
-        <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">{title}</h1>
-        {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+    <div className="mb-5 flex flex-col gap-4 sm:mb-7 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <h1 className="font-display text-[26px] font-bold leading-tight tracking-tight text-foreground sm:text-3xl">{title}</h1>
+        {subtitle && <p className="mt-1 text-[15px] leading-relaxed text-muted-foreground sm:text-sm">{subtitle}</p>}
       </div>
-      {actions && <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:p-0 [&>*]:shrink-0">{actions}</div>}
+      {actions && <div className="flex flex-wrap gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">{actions}</div>}
     </div>
   );
 }

@@ -2,13 +2,13 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import {
-  acceptInvitationSchema,
   devicePairSchema,
   loginSchema,
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
   registerSchema,
   userPreferencesSchema,
+  verifyCodeSchema,
 } from '@familyhub/shared';
 import { config, providerConfigured } from '../config.js';
 import { prisma } from '../db.js';
@@ -18,7 +18,9 @@ import { emailAdapter } from '../lib/email.js';
 import { AppError, badRequest, conflict, notFound, unauthorized } from '../lib/errors.js';
 import { route, type Mount } from '../lib/route.js';
 import { hashSecret, verifySecret } from '../auth/passwords.js';
-import { CSRF_COOKIE, clearSessionCookie, requireAuth, requireUser, startSession } from '../auth/session.js';
+import { CSRF_COOKIE, clearSessionCookie, requireAuth, requireSignedInUser, requireUser, startSession } from '../auth/session.js';
+import { issueCode, consumeCode } from '../lib/otp.js';
+import { activeJoinWhere, joinRequestDTO } from './join.js';
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60000,
@@ -27,6 +29,16 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: { code: 'RATE_LIMITED', message: 'Too many attempts. Try again later.' } },
 });
+
+const sendVerifyCode = (user: { id: string; email: string; displayName: string }, enforceCooldown = false) =>
+  issueCode({
+    userId: user.id,
+    email: user.email,
+    purpose: 'verify_email',
+    subject: 'Confirm your FamilyHub email',
+    intro: `Hi ${user.displayName}, welcome to FamilyHub! Enter this code to finish creating your account.`,
+    enforceCooldown,
+  });
 
 export function authRouter() {
   const router = Router();
@@ -53,7 +65,8 @@ export function authRouter() {
       });
       await startSession(req, res, { userId: user.id });
       await audit(req, { action: 'auth.register', entityType: 'user', entityId: user.id });
-      return { user: { id: user.id, email: user.email, displayName: user.displayName } };
+      const emailSent = await sendVerifyCode(user);
+      return { user: { id: user.id, email: user.email, displayName: user.displayName, emailVerified: false }, emailSent };
     },
   );
 
@@ -69,9 +82,29 @@ export function authRouter() {
       }
       await startSession(req, res, { userId: user.id });
       await audit(req, { action: 'auth.login', entityType: 'user', entityId: user.id });
-      return { user: { id: user.id, email: user.email, displayName: user.displayName } };
+      return { user: { id: user.id, email: user.email, displayName: user.displayName, emailVerified: Boolean(user.emailVerifiedAt) } };
     },
   );
+
+  route(
+    m,
+    { method: 'post', path: '/auth/verify-email', summary: 'Confirm my email with the 6-digit code', tags, body: verifyCodeSchema, middleware: [requireSignedInUser, authLimiter] },
+    async (req, _res, { body }) => {
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.userId! } });
+      if (!user.emailVerifiedAt) {
+        await consumeCode({ userId: user.id, purpose: 'verify_email', code: body.code });
+        await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
+        await audit(req, { action: 'auth.email_verified', entityType: 'user', entityId: user.id });
+      }
+      return { ok: true };
+    },
+  );
+
+  route(m, { method: 'post', path: '/auth/verify-email/resend', summary: 'Email me a new verification code', tags, middleware: [requireSignedInUser, authLimiter] }, async (req) => {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.userId! } });
+    if (user.emailVerifiedAt) return { emailSent: false };
+    return { emailSent: await sendVerifyCode(user, true) };
+  });
 
   route(m, { method: 'post', path: '/auth/logout', summary: 'Sign out of this device', tags }, async (req, res) => {
     if (req.auth) await prisma.session.update({ where: { id: req.auth.sessionId }, data: { revokedAt: new Date() } });
@@ -98,11 +131,13 @@ export function authRouter() {
       include: {
         memberships: { where: { isActive: true }, include: { household: { select: { id: true, name: true } } } },
         preferences: true,
+        joinRequests: { where: activeJoinWhere(), include: { household: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
       },
     });
     return {
       kind: 'user',
-      user: { id: user.id, email: user.email, displayName: user.displayName, hasPassword: Boolean(user.passwordHash) },
+      user: { id: user.id, email: user.email, displayName: user.displayName, hasPassword: Boolean(user.passwordHash), emailVerified: Boolean(user.emailVerifiedAt) },
+      joinRequests: user.joinRequests.map((j) => joinRequestDTO({ ...j, user })),
       preferences: user.preferences?.data ?? {},
       memberships: user.memberships.map((mm) => ({
         householdId: mm.householdId,
@@ -186,6 +221,7 @@ export function authRouter() {
         prisma.user.update({ where: { id: record.userId }, data: { passwordHash: await hashSecret(body.password) } }),
         prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
         prisma.session.updateMany({ where: { userId: record.userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+        prisma.user.updateMany({ where: { id: record.userId, emailVerifiedAt: null }, data: { emailVerifiedAt: new Date() } }),
       ]);
       await audit(req, { action: 'auth.password_reset', entityType: 'user', entityId: record.userId });
       return { ok: true };
@@ -220,41 +256,6 @@ export function authRouter() {
     return { householdName: inv.household.name, role: inv.role, email: inv.email, invitedBy: inv.invitedBy.displayName };
   });
 
-  route(
-    m,
-    { method: 'post', path: '/invitations/accept', summary: 'Accept an invitation as the signed-in user', tags: ['Invitations'], body: acceptInvitationSchema, middleware: [requireUser] },
-    async (req, _res, { body }) => {
-      const inv = await prisma.invitation.findUnique({ where: { tokenHash: sha256(body.token) } });
-      if (!inv || inv.revokedAt || inv.acceptedAt || inv.expiresAt < new Date()) throw notFound('Invitation');
-      const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.userId! } });
-      if (user.email !== inv.email) throw new AppError(403, 'EMAIL_MISMATCH', `This invitation was sent to ${inv.email}`);
-      const already = await prisma.householdMember.findFirst({ where: { householdId: inv.householdId, userId: user.id } });
-      if (already) throw conflict('You are already a member of this household');
-      const member = await prisma.$transaction(async (tx) => {
-        await tx.invitation.update({ where: { id: inv.id }, data: { acceptedAt: new Date() } });
-        if (inv.memberId) {
-          const target = await tx.householdMember.findFirst({ where: { id: inv.memberId, householdId: inv.householdId } });
-          if (target && !target.userId) {
-            return tx.householdMember.update({ where: { id: target.id }, data: { userId: user.id, role: inv.role, isActive: true } });
-          }
-        }
-        const count = await tx.householdMember.count({ where: { householdId: inv.householdId } });
-        const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#8b5cf6'];
-        return tx.householdMember.create({
-          data: {
-            householdId: inv.householdId,
-            userId: user.id,
-            firstName: user.displayName.split(' ')[0] ?? user.displayName,
-            displayName: user.displayName,
-            role: inv.role,
-            color: colors[count % colors.length]!,
-          },
-        });
-      });
-      await audit(req, { householdId: inv.householdId, action: 'invitation.accepted', entityType: 'member', entityId: member.id });
-      return { householdId: inv.householdId, memberId: member.id };
-    },
-  );
 
   // ── Google sign-in (OAuth 2.0 authorization code + PKCE). Disabled unless configured. ──
   const GOOGLE_STATE_COOKIE = 'fh_google_signin';

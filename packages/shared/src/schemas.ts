@@ -96,6 +96,9 @@ export const createInvitationSchema = z.object({
   memberId: z.string().uuid().optional(),
 });
 export const acceptInvitationSchema = z.object({ token: z.string().min(20).max(200) });
+const sixDigits = z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code');
+export const verifyCodeSchema = z.object({ code: sixDigits });
+export const approveJoinSchema = z.object({ code: sixDigits.optional() });
 
 // ── Devices ──
 export const createDeviceSchema = z.object({ name: z.string().trim().min(1).max(60) });

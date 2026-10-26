@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 228 33% 97%;
-    --foreground: 230 35% 12%;
+    --background: 40 23% 97.5%;
+    --foreground: 224 28% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 230 35% 12%;
+    --card-foreground: 224 28% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 230 35% 12%;
-    --primary: 252 83% 60%;
+    --popover-foreground: 224 28% 14%;
+    --primary: 234 58% 52%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 230 25% 94%;
-    --secondary-foreground: 230 30% 18%;
-    --muted: 230 25% 95%;
-    --muted-foreground: 229 12% 46%;
-    --accent: 22 95% 58%;
+    --secondary: 228 24% 95.5%;
+    --secondary-foreground: 226 28% 22%;
+    --muted: 225 20% 95.5%;
+    --muted-foreground: 224 10% 42%;
+    --accent: 16 80% 58%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 352 80% 56%;
+    --destructive: 356 70% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 230 22% 90%;
-    --input: 230 20% 87%;
-    --ring: 252 83% 60%;
-    --radius: 1rem;
+    --border: 225 16% 90%;
+    --input: 225 14% 86%;
+    --ring: 234 58% 52%;
+    --radius: 0.875rem;
   }
   .dark {
     --background: 232 30% 7%;
@@ -56,23 +56,25 @@
     @apply bg-background font-sans text-foreground antialiased;
     font-feature-settings: 'cv11', 'ss01', 'ss03';
     -webkit-tap-highlight-color: transparent;
-    background-image:
-      radial-gradient(60rem 40rem at 110% -10%, hsl(252 90% 70% / 0.10), transparent 60%),
-      radial-gradient(50rem 35rem at -10% 110%, hsl(22 95% 60% / 0.07), transparent 60%);
+    background-image: radial-gradient(70rem 30rem at 50% -12rem, hsl(234 60% 60% / 0.06), transparent 70%);
     background-attachment: fixed;
+    overflow-wrap: break-word;
+    text-rendering: optimizeLegibility;
   }
+  .dark body { background-image: none; }
+  p, li, h1, h2, h3, h4 { text-wrap: pretty; }
   h1, h2, h3 { @apply font-display tracking-tight; }
 }
 
 @layer components {
-  .glass { @apply border border-white/60 bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-white/5; }
-  .text-gradient { @apply bg-gradient-to-r from-violet-600 via-indigo-500 to-sky-500 bg-clip-text text-transparent; }
-  .brand-gradient { background-image: linear-gradient(135deg, hsl(252 83% 62%), hsl(222 90% 58%) 55%, hsl(195 90% 52%)); }
+  .glass { @apply border border-border/70 bg-white/85 backdrop-blur-xl dark:border-white/10 dark:bg-card/80; }
+  .text-gradient { @apply text-primary; }
+  .brand-gradient { background-image: linear-gradient(135deg, hsl(234 58% 54%), hsl(248 55% 60%)); }
 
   .fc { --fc-border-color: hsl(var(--border)); --fc-today-bg-color: hsl(var(--primary) / 0.07); --fc-page-bg-color: transparent; --fc-neutral-bg-color: hsl(var(--muted)); font-size: 0.875rem; }
   .fc .fc-toolbar-title { @apply font-display text-xl font-bold tracking-tight; }
   .fc .fc-button { @apply rounded-xl border-0 bg-secondary px-3 py-1.5 text-sm font-medium text-secondary-foreground shadow-none transition-colors hover:bg-secondary/70; }
-  .fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active { @apply bg-primary text-primary-foreground shadow-glow; }
+  .fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active { @apply bg-primary text-primary-foreground shadow-sm; }
   .fc .fc-button-group > .fc-button { @apply mx-0.5 rounded-xl; }
   .fc .fc-scrollgrid { @apply overflow-hidden rounded-2xl; }
   .fc .fc-event { @apply cursor-pointer rounded-lg border-0 px-1; }

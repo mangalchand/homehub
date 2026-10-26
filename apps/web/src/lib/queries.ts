@@ -6,11 +6,16 @@ import { useUi } from '@/store/ui';
 export interface Membership { householdId: string; householdName: string; memberId: string | null; role: string; color?: string }
 export interface Me {
   kind: 'user' | 'device';
-  user?: { id: string; email: string; displayName: string; hasPassword: boolean };
+  user?: { id: string; email: string; displayName: string; hasPassword: boolean; emailVerified: boolean };
   device?: { id: string; name: string; householdId: string };
   memberships: Membership[];
   session: { id: string; pinElevatedUntil: string | null };
   preferences?: Record<string, unknown>;
+  joinRequests?: JoinRequestDTO[];
+}
+export interface JoinRequestDTO {
+  id: string; householdId: string; householdName: string | null; email: string; displayName: string; role: string;
+  requesterVerified: boolean; approved: boolean; status: 'pending' | 'approved' | 'rejected' | 'expired'; createdAt: string; expiresAt: string;
 }
 export interface Household { id: string; name: string; timezone: string; locale: string; weekStartsOn: number; settings: Record<string, unknown>; hasPin: boolean }
 export interface Task {
@@ -65,6 +70,7 @@ export const useApprovals = (enabled: boolean) => useHh<Approvals>(['approvals']
 export const useLists = () => useHh<ListSummary[]>(['lists'], '/lists');
 export const useList = (listId: string | undefined) =>
   useHh<ListSummary & { items: ListItem[] }>(['lists', listId], `/lists/${listId}`, { enabled: Boolean(listId) });
+export const useJoinRequests = (enabled: boolean) => useHh<JoinRequestDTO[]>(['join'], '/join-requests', { enabled, refetchInterval: 20_000 });
 export const useAnnouncements = () => useHh<Announcement[]>(['announcements'], '/announcements');
 export const useActiveLayout = () => useHh<Layout>(['dashboard', 'active'], '/dashboard-layouts/active');
 export const useLayouts = () => useHh<Layout[]>(['dashboard', 'all'], '/dashboard-layouts');

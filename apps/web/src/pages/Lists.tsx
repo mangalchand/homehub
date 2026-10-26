@@ -71,11 +71,11 @@ function ListDetail({ listId }: { listId: string }) {
 
   if (!list) return null;
   const Row = ({ it }: { it: ListItem }) => (
-    <li className="group flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-muted/60">
-      <input type="checkbox" checked={it.isDone} onChange={() => void toggle(it)} className="h-5 w-5 accent-[hsl(var(--primary))]" aria-label={`Mark ${it.name}`} />
-      <span className={cn('flex-1', it.isDone && 'text-muted-foreground line-through', it.pending && 'opacity-60')}>{it.name}</span>
+    <li className="group flex items-start gap-3 rounded-xl px-2 py-2.5 hover:bg-muted/60">
+      <input type="checkbox" checked={it.isDone} onChange={() => void toggle(it)} className="mt-0.5 h-5 w-5 shrink-0 accent-[hsl(var(--primary))]" aria-label={`Mark ${it.name}`} />
+      <span className={cn('min-w-0 flex-1 leading-snug', it.isDone && 'text-muted-foreground line-through', it.pending && 'opacity-60')}>{it.name}</span>
       {it.quantity && <Badge tone="muted">{it.quantity}{it.unit ? ` ${it.unit}` : ''}</Badge>}
-      <button onClick={() => void remove(it)} className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus:opacity-100" aria-label={`Remove ${it.name}`}><Trash2 className="h-4 w-4" /></button>
+      <button onClick={() => void remove(it)} className="shrink-0 p-0.5 text-muted-foreground transition-opacity hover:text-destructive focus:opacity-100 md:opacity-0 md:group-hover:opacity-100" aria-label={`Remove ${it.name}`}><Trash2 className="h-4 w-4" /></button>
     </li>
   );
   return (
@@ -128,13 +128,13 @@ export default function ListsPage() {
     <div>
       <PageHeader title="Lists" subtitle="Groceries, to-dos and packing — shared in real time." actions={<Button onClick={() => setOpen(true)}><Plus /> New list</Button>} />
       {lists.length === 0 ? <Card><EmptyState icon={<ListChecks />} title="No lists yet" /></Card> : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
           {lists.map((l) => (
             <Link key={l.id} to={`/lists/${l.id}`}>
               <Card className="h-full transition-shadow hover:shadow-md">
                 <CardContent className="flex items-center gap-3 p-4">
                   <div className="rounded-xl bg-primary/10 p-2.5 text-primary">{l.type === 'GROCERY' ? <ShoppingCart className="h-5 w-5" /> : <ListChecks className="h-5 w-5" />}</div>
-                  <div className="min-w-0 flex-1"><p className="truncate font-semibold">{l.name}</p><p className="text-sm text-muted-foreground">{l.openCount} open · {l.doneCount} done</p></div>
+                  <div className="min-w-0 flex-1"><p className="font-semibold leading-snug">{l.name}</p><p className="text-sm text-muted-foreground">{l.openCount} open · {l.doneCount} done</p></div>
                   {l.isTemplate && <Badge tone="muted">Template</Badge>}
                 </CardContent>
               </Card>

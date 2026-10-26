@@ -32,12 +32,12 @@ export function OnboardingPage() {
     await queryClient.resetQueries();
   };
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="flex min-h-screen items-start justify-center px-4 pb-10 pt-[max(3rem,env(safe-area-inset-top))] sm:items-center">
       <Card className="w-full max-w-md">
         <CardContent className="space-y-5 p-6">
           <div>
-            <h1 className="text-2xl font-bold">Set up your household</h1>
-            <p className="text-sm text-muted-foreground">You can invite your family and connect calendars next. If someone invited you, open their invitation link instead.</p>
+            <h1 className="font-display text-2xl font-bold tracking-tight">Set up your household</h1>
+            <p className="mt-1 text-[15px] leading-relaxed text-muted-foreground">You can invite your family and connect calendars next. If someone invited you, open their invitation link instead.</p>
           </div>
           <form onSubmit={create} className="space-y-4">
             <Field label="Household name">

@@ -80,16 +80,18 @@ function TaskRow({ t, canManage }: { t: Task; canManage: boolean }) {
   const toggle = useHhMutation<void>((hid) => api(hh(hid, `/tasks/${t.id}`), { method: 'PATCH', body: { status: t.status === 'DONE' ? 'OPEN' : 'DONE' } }), [['tasks']]);
   const del = useHhMutation<void>((hid) => api(hh(hid, `/tasks/${t.id}`), { method: 'DELETE' }), [['tasks']]);
   return (
-    <div className="flex items-center gap-3 rounded-xl border bg-card p-3">
-      <input type="checkbox" className="h-5 w-5 accent-[hsl(var(--primary))]" checked={t.status === 'DONE'} disabled={!canManage} onChange={() => toggle.mutate()} aria-label={`Complete ${t.title}`} />
+    <div className="flex items-start gap-3 rounded-xl border bg-card p-3">
+      <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[hsl(var(--primary))]" checked={t.status === 'DONE'} disabled={!canManage} onChange={() => toggle.mutate()} aria-label={`Complete ${t.title}`} />
       <div className="min-w-0 flex-1">
-        <p className={cn('truncate font-medium', t.status === 'DONE' && 'text-muted-foreground line-through')}>{t.title}</p>
-        <p className="text-xs text-muted-foreground">{t.dueAt ? `Due ${format(new Date(t.dueAt), 'EEE d MMM, p')}` : 'No due date'}</p>
+        <p className={cn('font-medium leading-snug', t.status === 'DONE' && 'text-muted-foreground line-through')}>{t.title}</p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="text-xs text-muted-foreground">{t.dueAt ? `Due ${format(new Date(t.dueAt), 'EEE d MMM, p')}` : 'No due date'}</span>
+          {t.isOverdue && <Badge tone="danger">Overdue</Badge>}
+          {t.priority === 'HIGH' || t.priority === 'URGENT' ? <Badge tone="warning">{t.priority[0] + t.priority.slice(1).toLowerCase()}</Badge> : null}
+          <span className="flex -space-x-1.5">{t.memberIds.map((id) => { const m = members.find((x) => x.id === id); return m ? <Avatar key={id} name={m.displayName} color={m.color} size={22} /> : null; })}</span>
+        </div>
       </div>
-      {t.isOverdue && <Badge tone="danger">Overdue</Badge>}
-      {t.priority === 'HIGH' || t.priority === 'URGENT' ? <Badge tone="warning">{t.priority.toLowerCase()}</Badge> : null}
-      <div className="flex -space-x-2">{t.memberIds.map((id) => { const m = members.find((x) => x.id === id); return m ? <Avatar key={id} name={m.displayName} color={m.color} size={26} /> : null; })}</div>
-      {canManage && <Button variant="ghost" size="icon" aria-label="Delete" onClick={() => del.mutate()}><Trash2 /></Button>}
+      {canManage && <Button variant="ghost" size="icon" className="-my-1.5 -mr-1.5 shrink-0 text-muted-foreground" aria-label="Delete" onClick={() => del.mutate()}><Trash2 /></Button>}
     </div>
   );
 }
@@ -112,11 +114,11 @@ export default function ChoresPage() {
       {kids.length === 0 ? (
         <Card><EmptyState icon={<CheckSquare />} title="No chores yet" body="Create daily or weekly chores, assign them, and attach points kids can trade for rewards." /></Card>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
           {kids.map((m) => <Card key={m.id}><CardContent className="p-4"><MemberChoreColumn member={m} tasks={chores} points={points.find((p) => p.memberId === m.id)?.balance} /></CardContent></Card>)}
         </div>
       )}
-      <Card className="mt-8">
+      <Card className="mt-6 sm:mt-8">
         <CardHeader><CardTitle>Household tasks</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {tasks.length === 0 ? <p className="text-sm text-muted-foreground">Nothing on the to-do list.</p> : tasks.map((t) => <TaskRow key={t.id} t={t} canManage={isAdult} />)}

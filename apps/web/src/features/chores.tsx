@@ -46,7 +46,7 @@ export function ChoreTile({ task, member, compact }: { task: Task; member: Membe
       disabled={complete.isPending || undo.isPending}
       aria-pressed={done}
       className={cn(
-        'group flex w-full items-center gap-3 rounded-2xl border bg-card text-left transition-all hover:shadow-md active:scale-[0.99]',
+        'group flex w-full items-center gap-3 rounded-xl border bg-card text-left transition-all hover:border-primary/30 hover:shadow-soft active:scale-[0.99]',
         compact ? 'p-2.5' : 'p-3.5',
         done && 'border-transparent bg-emerald-500/10',
       )}

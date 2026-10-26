@@ -191,6 +191,8 @@ model User {
   preferences     UserPreference?
   invitationsSent Invitation[]         @relation("InvitedBy")
   auditLogs       AuditLog[]
+  emailCodes      EmailCode[]
+  joinRequests    JoinRequest[]
 
   @@map("users")
 }
@@ -208,6 +210,7 @@ model Household {
 
   members              HouseholdMember[]
   invitations          Invitation[]
+  joinRequests         JoinRequest[]
   devices              Device[]
   sessions             Session[]
   calendarAccounts     CalendarAccount[]
@@ -295,6 +298,7 @@ model Invitation {
   household Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
   member    HouseholdMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
   invitedBy User             @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  joinRequest JoinRequest?
 
   @@index([householdId])
   @@map("invitations")
@@ -1123,4 +1127,48 @@ model IntegrationConnection {
 
   @@unique([householdId, type])
   @@map("integration_connections")
+}
+
+/// One-time 6-digit email codes (sign-up verification and join approvals).
+model EmailCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  purpose   String
+  subjectId String?   @map("subject_id") @db.Uuid
+  codeHash  String    @map("code_hash")
+  attempts  Int       @default(0)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@map("email_codes")
+}
+
+/// A signed-in user asking to join a household via an invitation. Needs the requester's code
+/// plus approval by an admin (with their emailed code) or by a paired home device.
+model JoinRequest {
+  id                  String     @id @default(uuid()) @db.Uuid
+  householdId         String     @map("household_id") @db.Uuid
+  invitationId        String     @unique @map("invitation_id") @db.Uuid
+  userId              String     @map("user_id") @db.Uuid
+  role                MemberRole
+  requesterVerifiedAt DateTime?  @map("requester_verified_at")
+  approvedAt          DateTime?  @map("approved_at")
+  approvedBy          String?    @map("approved_by")
+  rejectedAt          DateTime?  @map("rejected_at")
+  completedAt         DateTime?  @map("completed_at")
+  memberId            String?    @map("member_id") @db.Uuid
+  expiresAt           DateTime   @map("expires_at")
+  createdAt           DateTime   @default(now()) @map("created_at")
+
+  household  Household  @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([householdId])
+  @@index([userId])
+  @@map("join_requests")
 }

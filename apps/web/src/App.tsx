@@ -11,6 +11,7 @@ import { Spinner } from './components/ui/misc';
 import { LoginPage } from './pages/Login';
 import { OnboardingPage } from './pages/Onboarding';
 import { AcceptInvite, InviteLanding, pendingInvite } from './pages/Invite';
+import { JoinPendingPage, VerifyEmailPage } from './features/join';
 
 const DashboardPage = lazy(() => import('./pages/Dashboard'));
 const CalendarPage = lazy(() => import('./pages/Calendar'));
@@ -77,8 +78,12 @@ export function App() {
       </Routes>
     );
   }
+  if (me.data.kind === 'user' && me.data.user && !me.data.user.emailVerified) return <VerifyEmailPage email={me.data.user.email} />;
   if (loc.pathname.startsWith('/invite/')) return <Routes><Route path="/invite/:token" element={<AcceptInvite />} /></Routes>;
   if (pendingInvite()) return <AcceptInvite />;
+  const joins = me.data.joinRequests ?? [];
+  const join = joins.find((j) => !j.requesterVerified) ?? (!me.data.memberships.length ? joins[0] : undefined);
+  if (join) return <JoinPendingPage request={join} />;
   if (!me.data.memberships.length) return <OnboardingPage />;
   if (!householdId) return <Loading />;
 

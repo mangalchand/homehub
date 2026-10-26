@@ -30,10 +30,10 @@ function Clock() {
 function EventRow({ e, members, tz }: { e: EventOccurrenceDTO; members: MemberDTO[]; tz: string }) {
   const past = new Date(e.endAt) < new Date();
   return (
-    <div className={cn('flex items-center gap-3 rounded-2xl p-2 transition-colors hover:bg-muted/60', past && 'opacity-50')}>
+    <div className={cn('flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-muted/60', past && 'opacity-50')}>
       <span className="h-10 w-1.5 shrink-0 rounded-full" style={{ background: e.color }} />
-      <div className="w-[4.75rem] shrink-0 whitespace-nowrap text-sm font-medium tabular-nums text-muted-foreground">{e.allDay ? 'All day' : format(zoned(e.startAt, tz), 'h:mm a')}</div>
-      <div className="min-w-0 flex-1"><p className={cn('truncate font-medium', e.busyOnly && 'italic text-muted-foreground')}>{e.title}</p>{e.location && <p className="truncate text-xs text-muted-foreground">{e.location}</p>}</div>
+      <div className="w-[4.5rem] shrink-0 whitespace-nowrap text-[13px] font-semibold tabular-nums text-muted-foreground">{e.allDay ? 'All day' : format(zoned(e.startAt, tz), 'h:mm a')}</div>
+      <div className="min-w-0 flex-1"><p className={cn('line-clamp-2 font-medium leading-snug', e.busyOnly && 'italic text-muted-foreground')}>{e.title}</p>{e.location && <p className="line-clamp-1 text-xs text-muted-foreground">{e.location}</p>}</div>
       <div className="flex -space-x-1.5">{e.memberIds.slice(0, 4).map((id) => { const m = members.find((x) => x.id === id); return m ? <Avatar key={id} name={m.displayName} color={m.color} size={24} /> : null; })}</div>
     </div>
   );
@@ -88,7 +88,7 @@ function AnnouncementsWidget() {
       <CardContent className="space-y-2">
         {items.slice(0, 4).map((a) => (
           <div key={a.id} className={cn('rounded-xl p-3', a.priority === 'URGENT' ? 'bg-destructive/10' : a.priority === 'IMPORTANT' ? 'bg-amber-500/10' : 'bg-muted/60')}>
-            <p className="font-medium">{a.title}</p>{a.body && <p className="text-sm text-muted-foreground">{a.body}</p>}
+            <p className="font-semibold leading-snug">{a.title}</p>{a.body && <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{a.body}</p>}
           </div>
         ))}
       </CardContent>
@@ -123,7 +123,7 @@ function BirthdaysWidget({ members }: { members: MemberDTO[] }) {
   if (!upcoming.length) return null;
   return (
     <Card className="h-full"><CardHeader><CardTitle><IconTile className="bg-rose-500/10 text-rose-600 dark:text-rose-300"><Cake /></IconTile> Birthdays</CardTitle></CardHeader><CardContent className="space-y-2">
-      {upcoming.map(({ m, next, age }) => <div key={m.id} className="flex items-center gap-3"><Avatar name={m.displayName} color={m.color} size={30} /><p className="flex-1 text-sm"><b>{m.displayName}</b> turns {age}</p><span className="text-sm text-muted-foreground">{format(next, 'd MMM')}</span></div>)}
+      {upcoming.map(({ m, next, age }) => <div key={m.id} className="flex items-center gap-3"><Avatar name={m.displayName} color={m.color} size={30} /><p className="min-w-0 flex-1 text-sm"><b className="font-semibold">{m.displayName}</b> turns {age}</p><span className="text-sm text-muted-foreground">{format(next, 'd MMM')}</span></div>)}
     </CardContent></Card>
   );
 }
@@ -136,8 +136,8 @@ function TasksWidget() {
       <CardHeader><CardTitle><IconTile className="bg-sky-500/10 text-sky-600 dark:text-sky-300"><ListTodo /></IconTile> To do</CardTitle><Link to="/chores" className="rounded-full px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10">All →</Link></CardHeader>
       <CardContent className="space-y-2">
         {tasks.slice(0, 5).map((t) => (
-          <div key={t.id} className="flex items-center justify-between gap-2 rounded-xl bg-muted/50 px-3 py-2 text-sm">
-            <span className="font-medium">{t.title}</span>
+          <div key={t.id} className="flex items-start justify-between gap-3 rounded-xl bg-muted/50 px-3 py-2.5 text-sm">
+            <span className="min-w-0 flex-1 font-medium leading-snug">{t.title}</span>
             {t.isOverdue ? <Badge tone="danger">Overdue</Badge> : t.dueAt ? <span className="text-xs text-muted-foreground">{format(new Date(t.dueAt), 'EEE d MMM')}</span> : null}
           </div>
         ))}
@@ -152,7 +152,7 @@ function UpNextOverlay({ members }: { members: MemberDTO[] }) {
   const events = (useEvents(qs, qe).data ?? []).filter((e) => new Date(e.endAt) > new Date()).slice(0, 5);
   const today = startOfDay(zoned(new Date(), tz));
   return (
-    <Link to="/calendar" className="block w-full rounded-3xl border border-white/25 bg-black/35 p-4 text-white shadow-lift backdrop-blur-xl md:w-[22rem]">
+    <Link to="/calendar" className="block w-full rounded-2xl border border-white/20 bg-slate-950/40 p-4 text-white shadow-lift backdrop-blur-xl md:w-[22rem]">
       <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white/80"><CalendarDays className="h-4 w-4" /> Up next</p>
       {events.length === 0 ? <p className="py-2 text-sm text-white/80">Nothing in the next two weeks</p> : (
         <ul className="space-y-1.5">
@@ -163,7 +163,7 @@ function UpNextOverlay({ members }: { members: MemberDTO[] }) {
               <li key={e.id} className="flex items-center gap-2.5">
                 <span className="h-8 w-1 shrink-0 rounded-full" style={{ background: e.color }} />
                 <div className="min-w-0 flex-1">
-                  <p className={cn('truncate text-sm font-semibold', e.busyOnly && 'italic text-white/80')}>{e.title}</p>
+                  <p className={cn('line-clamp-2 text-sm font-semibold leading-snug', e.busyOnly && 'italic text-white/80')}>{e.title}</p>
                   <p className="text-[11px] text-white/75">{day} · {e.allDay ? 'All day' : format(start, 'h:mm a')}</p>
                 </div>
                 <div className="flex -space-x-1">{e.memberIds.slice(0, 3).map((id) => { const m = members.find((x) => x.id === id); return m ? <Avatar key={id} name={m.displayName} color={m.color} size={20} className="ring-1 ring-black/30" /> : null; })}</div>
@@ -195,7 +195,7 @@ export default function DashboardPage() {
   };
   return (
     <div className="space-y-5">
-      <PhotoSlideshow className="min-h-[22rem] shadow-lift md:h-[26rem]">
+      <PhotoSlideshow className="min-h-[22rem] rounded-2xl shadow-lift sm:rounded-3xl md:h-[26rem]">
         <div className="flex h-full min-h-[22rem] flex-col justify-between gap-4 p-5 md:h-[26rem] md:flex-row md:items-end md:p-8">
           <div className="flex flex-col justify-end gap-4 md:h-full">
             <Clock />

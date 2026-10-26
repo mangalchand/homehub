@@ -18,6 +18,7 @@ import { tasksRouter } from './routes/tasks.js';
 import { homeRouter } from './routes/home.js';
 import { photosRouter } from './routes/photos.js';
 import { pushRouter } from './routes/push.js';
+import { joinHouseholdRouter, joinUserRouter } from './routes/join.js';
 import { logger } from './logger.js';
 
 export function buildOpenApiDocument() {
@@ -64,6 +65,7 @@ export function createApp() {
   app.use('/api/v1', authRouter());
   app.use(integrationCallbackRouter());
   app.use('/api/v1', householdRootRouter());
+  app.use('/api/v1', joinUserRouter());
   const scoped = '/api/v1/households/:householdId';
   app.use(scoped, householdRouter());
   app.use(scoped, calendarsRouter());
@@ -73,6 +75,7 @@ export function createApp() {
   app.use(scoped, homeRouter());
   app.use(scoped, photosRouter());
   app.use(scoped, pushRouter());
+  app.use(scoped, joinHouseholdRouter());
 
   const doc = buildOpenApiDocument();
   app.get('/api/openapi.json', (_req, res) => res.json(doc));
