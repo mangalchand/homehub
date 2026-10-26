@@ -320,6 +320,8 @@ model Device {
   household Household         @relation(fields: [householdId], references: [id], onDelete: Cascade)
   sessions  Session[]
   layouts   DashboardLayout[]
+  pushSubscriptions PushSubscription[]
+  notificationReads DeviceNotificationRead[]
 
   @@index([householdId])
   @@map("devices")
@@ -878,7 +880,8 @@ model Reminder {
 model Notification {
   id          String              @id @default(uuid()) @db.Uuid
   householdId String              @map("household_id") @db.Uuid
-  memberId    String              @map("member_id") @db.Uuid
+  /// Null = household feed entry, shown on paired home displays.
+  memberId    String?             @map("member_id") @db.Uuid
   type        String
   title       String
   body        String?
@@ -890,9 +893,11 @@ model Notification {
   createdAt   DateTime            @default(now()) @map("created_at")
 
   household Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  member    HouseholdMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member    HouseholdMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  deviceReads DeviceNotificationRead[]
 
   @@index([memberId, readAt])
+  @@index([householdId, createdAt])
   @@map("notifications")
 }
 
@@ -900,7 +905,9 @@ model Notification {
 model PushSubscription {
   id          String   @id @default(uuid()) @db.Uuid
   householdId String   @map("household_id") @db.Uuid
-  memberId    String   @map("member_id") @db.Uuid
+  memberId    String?  @map("member_id") @db.Uuid
+  /// Set for a paired home display's Android app (FCM) instead of a member.
+  deviceId    String?  @map("device_id") @db.Uuid
   kind        String   @default("WEB")
   endpoint    String   @unique
   keys        Json     @default("{}")
@@ -909,10 +916,23 @@ model PushSubscription {
   lastUsedAt  DateTime? @map("last_used_at")
 
   household Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  member    HouseholdMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member    HouseholdMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  device    Device? @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([memberId])
+  @@index([deviceId])
   @@map("push_subscriptions")
+}
+
+model DeviceNotificationRead {
+  deviceId       String @map("device_id") @db.Uuid
+  notificationId String @map("notification_id") @db.Uuid
+  readAt         DateTime @default(now()) @map("read_at")
+  device         Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@id([deviceId, notificationId])
+  @@map("device_notification_reads")
 }
 
 model DashboardLayout {

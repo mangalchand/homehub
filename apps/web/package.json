@@ -13,6 +13,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@capacitor/core": "6.2.2",
     "@familyhub/shared": "workspace:*",
     "@fontsource-variable/inter": "^5",
     "@fontsource-variable/plus-jakarta-sans": "^5",

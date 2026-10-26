@@ -19,15 +19,22 @@ class ConsoleEmailAdapter implements EmailAdapter {
   async send(message: EmailMessage) {
     this.outbox.push(message);
     if (this.outbox.length > 50) this.outbox.shift();
-    logger.info({ to: message.to, subject: message.subject, from: config.EMAIL_FROM }, `[email] ${message.text}`);
+    if (config.NODE_ENV !== 'production') logger.info({ to: message.to, subject: message.subject, from: config.EMAIL_FROM }, `[email] ${message.text}`);
     return false;
   }
 }
 
 /** Amazon SES. Credentials come from the default AWS chain (EC2 instance role in production). */
 class SesEmailAdapter implements EmailAdapter {
-  private client = new SESv2Client({ region: config.SES_REGION || config.AWS_REGION });
-  async send(message: EmailMessage) {
+  private client = new SESv2Client({ region: config.SES_REGION || config.AWS_REGION, maxAttempts: 4 });
+  private queue: Promise<unknown> = Promise.resolve();
+  send(message: EmailMessage): Promise<boolean> {
+    // SES sandbox permits one message per second; invitations can generate several codes at once.
+    const sent = this.queue.then(() => this.deliver(message));
+    this.queue = sent.then(() => new Promise((resolve) => setTimeout(resolve, 1100)));
+    return sent;
+  }
+  private async deliver(message: EmailMessage) {
     try {
       await this.client.send(
         new SendEmailCommand({

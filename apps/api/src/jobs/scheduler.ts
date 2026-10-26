@@ -15,25 +15,22 @@ export async function generateEventReminders(now = new Date(), horizonMinutes = 
       reminderMinutes: { isEmpty: false },
       OR: [{ rrule: { not: null }, startAt: { lt: horizon } }, { rrule: null, startAt: { gte: now, lt: horizon } }],
     },
-    include: { assignments: true },
+    include: { assignments: true, calendar: true },
     take: 2000,
   });
   let created = 0;
   for (const ev of events) {
-    if (!ev.assignments.length) continue;
     for (const occ of expandOccurrences(ev, now, horizon)) {
       for (const minutes of ev.reminderMinutes) {
         const remindAt = new Date(occ.start.getTime() - minutes * 60000);
         if (remindAt > now || occ.start < now) continue;
-        for (const a of ev.assignments) {
-          const dedupeKey = `evrem:${ev.id}:${occ.start.toISOString()}:${minutes}`;
-          const when = DateTime.fromJSDate(occ.start).setZone(ev.timezone).toFormat('h:mm a');
-          created += await notify(
-            ev.householdId,
-            { type: 'event.reminder', title: ev.title, body: ev.allDay ? 'Today' : `Starts at ${when}`, url: '/calendar', data: { eventId: ev.id, startAt: occ.start.toISOString() } },
-            { to: [a.memberId], dedupeKey },
-          );
-        }
+        const dedupeKey = `evrem:${ev.id}:${occ.start.toISOString()}:${minutes}`;
+        const when = DateTime.fromJSDate(occ.start).setZone(ev.timezone).toFormat('h:mm a');
+        created += await notify(
+          ev.householdId,
+          { type: 'event.reminder', title: ev.title, body: ev.allDay ? 'Today' : `Starts at ${when}`, url: '/calendar', data: { eventId: ev.id, startAt: occ.start.toISOString() }, householdFeed: !ev.isPrivate && ev.calendar.visibility === 'HOUSEHOLD' && ev.calendar.showOnWallDisplay },
+          { to: ev.assignments.map((a) => a.memberId), dedupeKey },
+        );
       }
     }
   }

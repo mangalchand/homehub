@@ -132,31 +132,29 @@ export default function CalendarPage() {
   const move = useHhMutation<{ occ: EventOccurrenceDTO; start: Date; end: Date }>((hid, v) => api(hh(hid, `/events/${v.occ.eventId}`), { method: 'PATCH', body: { startAt: v.start.toISOString(), endAt: v.end.toISOString(), scope: 'all', expectedVersion: v.occ.version } }), [['events']]);
 
   return (
-    <div className="flex flex-col gap-4 lg:flex-row">
-      <aside className="space-y-3 lg:w-60 lg:shrink-0 lg:space-y-4">
-        {canWriteEvents && <Button className="w-full" onClick={() => { const s = new Date(); s.setMinutes(0, 0, 0); s.setHours(s.getHours() + 1); const dd = newDraft(s, new Date(s.getTime() + 3600000), false); if (dd) setDraft(dd); }}><Plus /> New event</Button>}
-        <Card><CardContent className="flex gap-1 overflow-x-auto p-2 lg:block lg:space-y-1 lg:p-3">
-          <p className="hidden px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:block">Family</p>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        {canWriteEvents && <Button className="w-full sm:w-auto sm:shrink-0" onClick={() => { const s = new Date(); s.setMinutes(0, 0, 0); s.setHours(s.getHours() + 1); const dd = newDraft(s, new Date(s.getTime() + 3600000), false); if (dd) setDraft(dd); }}><Plus /> New event</Button>}
+        <Card className="min-w-0 flex-1"><CardContent className="flex flex-wrap items-center gap-1 p-2">
           {members.map((m) => (
-            <button key={m.id} onClick={() => toggleMember(m.id)} className={cn('flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-1 py-1 pr-3 text-sm hover:bg-muted lg:w-full lg:rounded-lg lg:pr-1', memberFilter.length && !memberFilter.includes(m.id) && 'opacity-40')}>
+            <button key={m.id} onClick={() => toggleMember(m.id)} className={cn('flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-transparent px-1 py-1 pr-3 text-sm font-medium hover:bg-muted', memberFilter.includes(m.id) && 'border-primary/30 bg-primary/5', memberFilter.length && !memberFilter.includes(m.id) && 'opacity-40')}>
               <Avatar name={m.displayName} color={m.color} size={24} /> {m.displayName}
             </button>
           ))}
           {memberFilter.length > 0 && <button onClick={clearMemberFilter} className="shrink-0 whitespace-nowrap px-1 text-xs text-primary">Show everyone</button>}
         </CardContent></Card>
-        <Card className="hidden lg:block"><CardContent className="space-y-1 p-3">
-          <p className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Calendars</p>
+        <Card className="hidden min-w-0 md:block"><CardContent className="flex flex-wrap items-center gap-x-3 gap-y-1 p-2">
           {calendars.map((c) => (
-            <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1 text-sm hover:bg-muted">
+            <label key={c.id} className="flex cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1 text-sm hover:bg-muted">
               <input type="checkbox" checked={!hiddenCalendarIds.includes(c.id)} onChange={() => toggleCalendar(c.id)} className="h-4 w-4" style={{ accentColor: c.color }} />
-              <span className="min-w-0 flex-1 truncate">{c.name}</span>
+              <span className="max-w-[12rem] truncate">{c.name}</span>
               {c.sync?.status === 'ERROR' && <span title={c.sync.lastError ?? ''}><AlertTriangle className="h-3.5 w-3.5 text-amber-500" /></span>}
               {c.access === 'BUSY' && <Badge tone="muted">busy</Badge>}
             </label>
           ))}
         </CardContent></Card>
-      </aside>
-      <Card className="min-w-0 flex-1"><CardContent className="p-3 md:p-4">
+      </div>
+      <Card className="min-w-0"><CardContent className="p-3 md:p-4">
         <FullCalendar
           ref={fcRef}
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin, luxonPlugin]}

@@ -41,6 +41,8 @@ export const passwordResetConfirmSchema = z.object({
   token: z.string().min(20).max(200),
   password: z.string().min(10).max(200),
 });
+export const loginCodeRequestSchema = z.object({ email: z.string().trim().toLowerCase().email() });
+export const loginCodeVerifySchema = z.object({ email: z.string().trim().toLowerCase().email(), code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code') });
 export const devicePairSchema = z.object({ code: z.string().trim().toUpperCase().min(6).max(12) });
 
 // ── Households ──

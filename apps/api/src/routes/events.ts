@@ -152,9 +152,9 @@ export function eventsRouter() {
         include: { assignments: true },
       });
       afterChange(req, 'event.created', ev, cal, twoWay);
-      if (!body.isPrivate) {
+      if (!body.isPrivate && cal.visibility === 'HOUSEHOLD') {
         const when = body.allDay ? new Date(body.startAt).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }) : new Date(body.startAt).toLocaleString('en-US', { timeZone: c.household.timezone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-        void notify(c.householdId, { type: 'event.created', title: `New event: ${body.title}`, body: `${when}${body.location ? ` · ${body.location}` : ''}`, url: '/calendar' }, { except: c.actor.kind === 'member' ? c.actor.memberId : null });
+        void notify(c.householdId, { type: 'event.created', title: `New event: ${body.title}`, body: `${when}${body.location ? ` · ${body.location}` : ''}`, url: '/calendar', householdFeed: cal.showOnWallDisplay }, { except: c.actor.kind === 'member' ? c.actor.memberId : null });
       }
       return eventDetail(ev);
     },

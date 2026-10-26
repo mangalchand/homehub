@@ -27,7 +27,7 @@ export function useNotifications(enabled = true) {
     queryKey: ['notifications', hid],
     queryFn: () => api<AppNotification[]>(hh(hid!, '/notifications')),
     enabled: Boolean(hid) && enabled,
-    refetchInterval: 120_000,
+    refetchInterval: 15_000,
   });
 }
 
@@ -83,11 +83,20 @@ export const soundEnabled = () => localStorage.getItem(SOUND_KEY) !== 'off';
 export const setSoundEnabled = (on: boolean) => localStorage.setItem(SOUND_KEY, on ? 'on' : 'off');
 
 let ctx: AudioContext | null = null;
+/** Call from a user gesture; browsers otherwise keep notification audio suspended. */
+export function unlockNotificationAudio() {
+  if (!soundEnabled()) return;
+  try {
+    ctx ??= new AudioContext();
+    if (ctx.state === 'suspended') void ctx.resume().catch(() => undefined);
+  } catch { /* audio is optional */ }
+}
 /** Short two-tone chime, synthesized so it works offline with no audio asset. */
 export function chime() {
   if (!soundEnabled()) return;
   try {
     ctx ??= new AudioContext();
+    if (ctx.state === 'suspended') void ctx.resume().catch(() => undefined);
     const now = ctx.currentTime;
     [880, 1318.5].forEach((freq, i) => {
       const o = ctx!.createOscillator();

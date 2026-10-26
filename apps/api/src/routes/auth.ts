@@ -3,6 +3,8 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import {
   devicePairSchema,
+  loginCodeRequestSchema,
+  loginCodeVerifySchema,
   loginSchema,
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
@@ -83,6 +85,32 @@ export function authRouter() {
       await startSession(req, res, { userId: user.id });
       await audit(req, { action: 'auth.login', entityType: 'user', entityId: user.id });
       return { user: { id: user.id, email: user.email, displayName: user.displayName, emailVerified: Boolean(user.emailVerifiedAt) } };
+    },
+  );
+
+  route(
+    m,
+    { method: 'post', path: '/auth/login-code/request', summary: 'Email me a one-time sign-in code', tags, body: loginCodeRequestSchema, auth: false, middleware: [authLimiter] },
+    async (_req, _res, { body }) => {
+      const user = await prisma.user.findUnique({ where: { email: body.email } });
+      if (user) {
+        await issueCode({ userId: user.id, email: user.email, purpose: 'login', subject: 'Your FamilyHub sign-in code', intro: `Hi ${user.displayName}, use this code to sign in to FamilyHub.`, enforceCooldown: true });
+      }
+      return { ok: true };
+    },
+  );
+
+  route(
+    m,
+    { method: 'post', path: '/auth/login-code/verify', summary: 'Sign in with an emailed one-time code', tags, body: loginCodeVerifySchema, auth: false, middleware: [authLimiter] },
+    async (req, res, { body }) => {
+      const user = await prisma.user.findUnique({ where: { email: body.email } });
+      if (!user) throw new AppError(400, 'CODE_INVALID', 'That code is not right. Check the latest email and try again.');
+      await consumeCode({ userId: user.id, purpose: 'login', code: body.code });
+      if (!user.emailVerifiedAt) await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
+      await startSession(req, res, { userId: user.id });
+      await audit(req, { action: 'auth.login_code', entityType: 'user', entityId: user.id });
+      return { user: { id: user.id, email: user.email, displayName: user.displayName, emailVerified: true } };
     },
   );
 

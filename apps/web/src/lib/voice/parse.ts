@@ -115,6 +115,16 @@ export function parseCommand(raw: string, now = new Date()): VoiceCommand {
     if (title) return { kind: 'task', title, due, memberName };
   }
 
+  // Loose fallback: "add call the plumber tomorrow" / "new pick up dry cleaning" → a task.
+  const loose = t.match(/^(?:add|create|new|note)\s+(.+)$/);
+  if (loose) {
+    const when = extractWhen(loose[1]!, now);
+    const { title, memberName } = splitMember(tidy(when.rest));
+    let due = when.date;
+    if (due && !when.hasTime) due = setHours(due, 9);
+    if (title) return { kind: 'task', title, due, memberName };
+  }
+
   return { kind: 'unknown', text: raw };
 }
 

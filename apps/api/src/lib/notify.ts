@@ -69,6 +69,8 @@ export interface NotifyInput {
   data?: Record<string, unknown>;
   /** Also deliver via push/WhatsApp (default true). In-app is always created. */
   external?: boolean;
+  /** False for sensitive member-only notifications that must never appear on a shared display. */
+  householdFeed?: boolean;
 }
 
 export interface NotifyTarget {
@@ -90,15 +92,19 @@ export async function notify(householdId: string, n: NotifyInput, target: Notify
       select: { id: true, preferences: true },
     });
     const recipients = members.filter((m) => !notificationPrefs(m.preferences).muted?.includes(n.type));
-    if (!recipients.length) return 0;
+    const feed = n.householdFeed ?? !target.to;
+    if (!feed && !recipients.length) return 0;
     const data = { ...(n.data ?? {}), url: n.url ?? '/' } as Prisma.InputJsonValue;
     const created = await prisma.notification.createMany({
-      data: recipients.map((m) => ({ householdId, memberId: m.id, type: n.type, title: n.title, body: n.body ?? null, data, dedupeKey: target.dedupeKey ? `${target.dedupeKey}:${m.id}` : null })),
+      data: [
+        ...recipients.map((m) => ({ householdId, memberId: m.id, type: n.type, title: n.title, body: n.body ?? null, data, dedupeKey: target.dedupeKey ? `${target.dedupeKey}:${m.id}` : null })),
+        ...(feed ? [{ householdId, memberId: null, type: n.type, title: n.title, body: n.body ?? null, data, dedupeKey: target.dedupeKey ? `${target.dedupeKey}:feed` : null }] : []),
+      ],
       skipDuplicates: true,
     });
     if (!created.count) return 0;
-    realtime.publish(householdId, { type: 'notifications.changed', data: { title: n.title, body: n.body ?? '', notificationType: n.type, memberIds: recipients.map((m) => m.id) } });
-    if (n.external !== false) void deliverExternal(householdId, recipients, n);
+    realtime.publish(householdId, { type: 'notifications.changed' });
+    if (n.external !== false) void deliverExternal(householdId, recipients, n, feed).catch((err) => logger.error({ err }, 'external notification delivery failed'));
     return created.count;
   } catch (err) {
     logger.error({ err, type: n.type }, 'notify failed');
@@ -106,7 +112,18 @@ export async function notify(householdId: string, n: NotifyInput, target: Notify
   }
 }
 
-async function deliverExternal(householdId: string, recipients: { id: string; preferences: Prisma.JsonValue }[], n: NotifyInput) {
+async function deliverExternal(householdId: string, recipients: { id: string; preferences: Prisma.JsonValue }[], n: NotifyInput, toDevices = false) {
+  if (toDevices && fcmConfigured()) {
+    const tokens = await prisma.pushSubscription.findMany({ where: { householdId, device: { revokedAt: null }, deviceId: { not: null }, kind: 'FCM' } });
+    for (const t of tokens) {
+      try {
+        const ok = await sendFcm(t.endpoint, { title: n.title, body: n.body ?? '', url: n.url ?? '/', tag: n.type });
+        if (!ok) await prisma.pushSubscription.delete({ where: { id: t.id } }).catch(() => undefined);
+      } catch (err) {
+        logger.warn({ err }, 'fcm device push failed');
+      }
+    }
+  }
   const pushIds = recipients.filter((m) => notificationPrefs(m.preferences).push).map((m) => m.id);
   if (pushIds.length) {
     try {

@@ -105,8 +105,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [night]);
 
   useEffect(() => {
-    if (householdId && !isDevice) void registerNativePush(householdId, (url) => navigate(url)).catch(() => undefined);
-  }, [householdId, isDevice, navigate]);
+    const identity = me.device?.id ?? me.user?.id ?? '';
+    const register = () => { if (householdId) void registerNativePush(householdId, (url) => navigate(url), identity).catch(() => undefined); };
+    register();
+    const resume = () => { if (document.visibilityState === 'visible') register(); };
+    document.addEventListener('visibilitychange', resume);
+    return () => document.removeEventListener('visibilitychange', resume);
+  }, [householdId, me.device?.id, me.user?.id, navigate]);
 
   const lock = async () => {
     await api(hh(householdId!, '/pin/lock'), { method: 'POST' });
@@ -203,7 +208,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <p className="truncate text-xs text-muted-foreground">{household?.name}</p>
             </div>
           </div>
-          {!isDevice && <NotificationBell />}
+          <NotificationBell />
         </header>
         <main className={cn('mx-auto w-full max-w-[1600px] flex-1 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 md:p-6 md:pb-6 md:pr-24', kiosk && 'md:p-5')}>{children}</main>
         <span className="sr-only" aria-live="polite">

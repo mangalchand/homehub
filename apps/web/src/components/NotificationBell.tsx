@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, BellRing, CalendarDays, CheckCheck, Gift, Images, Megaphone, ShoppingBasket, Sparkles } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { toast } from 'sonner';
-import { chime, useMarkRead, useNotifications, type AppNotification } from '@/lib/notifications';
+import { chime, unlockNotificationAudio, useMarkRead, useNotifications, type AppNotification } from '@/lib/notifications';
 import { cn } from '@/lib/utils';
 
 const ICONS: Record<string, typeof Bell> = {
@@ -12,27 +12,37 @@ const ICONS: Record<string, typeof Bell> = {
 const iconFor = (type: string) => ICONS[type.split('.')[0]!] ?? Bell;
 
 export function NotificationBell({ className }: { className?: string }) {
-  const { data = [] } = useNotifications();
+  const { data, isSuccess } = useNotifications();
+  const notifications = data ?? [];
   const markRead = useMarkRead();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [ring, setRing] = useState(false);
-  const seen = useRef<string | null>(null);
+  const seen = useRef<Set<string> | null>(null);
   const box = useRef<HTMLDivElement>(null);
-  const unread = data.filter((n) => !n.readAt).length;
+  const unread = notifications.filter((n) => !n.readAt).length;
+
+  useEffect(() => {
+    window.addEventListener('pointerdown', unlockNotificationAudio);
+    window.addEventListener('keydown', unlockNotificationAudio);
+    return () => {
+      window.removeEventListener('pointerdown', unlockNotificationAudio);
+      window.removeEventListener('keydown', unlockNotificationAudio);
+    };
+  }, []);
 
   // Chime + toast when a new unread notification arrives (not on first load).
   useEffect(() => {
-    const latest = data[0];
-    if (!latest) return;
-    if (seen.current && latest.id !== seen.current && !latest.readAt) {
+    if (!isSuccess || !data) return;
+    const fresh = seen.current ? data.filter((n) => !seen.current!.has(n.id) && !n.readAt) : [];
+    if (fresh.length) {
       chime();
       setRing(true);
       setTimeout(() => setRing(false), 1600);
-      toast(latest.title, { description: latest.body ?? undefined, action: latest.data?.url ? { label: 'Open', onClick: () => navigate(latest.data.url!) } : undefined });
+      for (const latest of fresh.slice(0, 3)) toast(latest.title, { description: latest.body ?? undefined, action: latest.data?.url ? { label: 'Open', onClick: () => navigate(latest.data.url!) } : undefined });
     }
-    seen.current = latest.id;
-  }, [data, navigate]);
+    seen.current = new Set(data.map((n) => n.id));
+  }, [data, isSuccess, navigate]);
 
   useEffect(() => {
     if (!open) return;
@@ -65,17 +75,17 @@ export function NotificationBell({ className }: { className?: string }) {
             {unread > 0 && <button className="flex items-center gap-1 text-xs font-semibold text-primary" onClick={() => markRead.mutate(undefined)}><CheckCheck className="h-4 w-4" /> Mark all read</button>}
           </div>
           <div className="max-h-[60vh] overflow-y-auto p-2">
-            {data.length === 0 ? (
+            {notifications.length === 0 ? (
               <p className="px-3 py-10 text-center text-sm text-muted-foreground">You’re all caught up.</p>
             ) : (
-              data.map((n) => {
+              notifications.map((n) => {
                 const I = iconFor(n.type);
                 return (
                   <button key={n.id} onClick={() => openItem(n)} className={cn('flex w-full items-start gap-3 rounded-2xl p-3 text-left transition hover:bg-muted/70', !n.readAt && 'bg-primary/5')}>
                     <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><I className="h-[18px] w-[18px]" /></span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-semibold leading-snug">{n.title}</span>
-                      {n.body && <span className="block truncate text-xs text-muted-foreground">{n.body}</span>}
+                      {n.body && <span className="block text-xs leading-relaxed text-muted-foreground">{n.body}</span>}
                       <span className="mt-0.5 block text-[11px] text-muted-foreground">{formatDistanceToNowStrict(new Date(n.createdAt), { addSuffix: true })}</span>
                     </span>
                     {!n.readAt && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />}

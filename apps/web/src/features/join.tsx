@@ -96,7 +96,7 @@ export function VerifyEmailPage({ email }: { email: string }) {
   return (
     <AuthFrame icon={<MailCheck />} title="Confirm your email">
       <p className="text-center text-[15px] leading-relaxed text-muted-foreground">
-        We sent a 6-digit code to <span className="break-all font-semibold text-foreground">{email}</span>. Enter it below to finish creating your account.
+        Enter the 6-digit code from the latest email to <span className="break-all font-semibold text-foreground">{email}</span> to finish creating your account.
       </p>
       <form onSubmit={verify} className="space-y-3">
         <CodeInput value={code} onChange={setCode} autoFocus />
@@ -105,7 +105,7 @@ export function VerifyEmailPage({ email }: { email: string }) {
         </Button>
       </form>
       <div className="rounded-xl bg-muted/70 p-3 text-sm leading-relaxed text-muted-foreground">
-        Didn’t get it? Check Spam or Promotions, or{' '}
+        Didn’t get it? Check Spam or Promotions. In AWS SES sandbox, your email address must first be verified with AWS. You can also{' '}
         <button className="font-semibold text-primary disabled:text-muted-foreground" disabled={cool.left > 0} onClick={() => void resend()}>
           {cool.left > 0 ? `send again in ${cool.left}s` : 'send a new code'}
         </button>

@@ -29,6 +29,11 @@ export function pushRouter() {
   const m: Mount = { router, prefix: '/api/v1/households/:householdId' };
 
   route(m, { method: 'get', path: '/notifications/settings', summary: 'My notification channels and Web Push key', tags: ['Notifications'] }, async (req) => {
+    const c0 = ctx(req);
+    if (c0.actor.kind === 'device') {
+      const pushDevices = await prisma.pushSubscription.count({ where: { householdId: c0.householdId, deviceId: c0.actor.deviceId } });
+      return { ...notificationPrefs({}), pushDevices, vapidPublicKey: '', whatsappAvailable: false };
+    }
     const { c, memberId } = memberOf(req);
     const member = await prisma.householdMember.findUniqueOrThrow({ where: { id: memberId }, select: { preferences: true } });
     const devices = await prisma.pushSubscription.count({ where: { householdId: c.householdId, memberId } });
@@ -56,11 +61,21 @@ export function pushRouter() {
   });
 
   route(m, { method: 'post', path: '/push/fcm-token', summary: 'Register the Android app (FCM) for push', tags: ['Notifications'], body: z.object({ token: z.string().min(20).max(4096) }), status: 201 }, async (req, _res, { body }) => {
+    const dc = ctx(req);
+    if (dc.actor.kind === 'device') {
+      const deviceId = dc.actor.deviceId;
+      await prisma.pushSubscription.upsert({
+        where: { endpoint: body.token },
+        create: { householdId: dc.householdId, deviceId, kind: 'FCM', endpoint: body.token, userAgent: req.get('user-agent')?.slice(0, 300) ?? null },
+        update: { householdId: dc.householdId, deviceId, memberId: null, kind: 'FCM' },
+      });
+      return { ok: true };
+    }
     const { c, memberId } = memberOf(req);
     await prisma.pushSubscription.upsert({
       where: { endpoint: body.token },
       create: { householdId: c.householdId, memberId, kind: 'FCM', endpoint: body.token, userAgent: req.get('user-agent')?.slice(0, 300) ?? null },
-      update: { householdId: c.householdId, memberId, kind: 'FCM' },
+      update: { householdId: c.householdId, memberId, deviceId: null, kind: 'FCM' },
     });
     return { ok: true };
   });
@@ -72,6 +87,11 @@ export function pushRouter() {
   });
 
   route(m, { method: 'post', path: '/notifications/test', summary: 'Send myself a test notification on every channel', tags: ['Notifications'] }, async (req) => {
+    const dc = ctx(req);
+    if (dc.actor.kind === 'device') {
+      const n = await notify(dc.householdId, { type: 'test', title: 'FamilyHub tablet test', body: 'Tablet alerts and push are connected. Check the chime volume and Android notification permission.', householdFeed: true }, { to: [] });
+      return { inApp: n > 0, whatsapp: 'off' };
+    }
     const { c, memberId } = memberOf(req);
     const n = await notify(c.householdId, { type: 'test', title: 'FamilyHub test notification', body: 'Notifications are working on this device.', url: '/' }, { to: [memberId] });
     const member = await prisma.householdMember.findUniqueOrThrow({ where: { id: memberId }, select: { preferences: true } });

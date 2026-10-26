@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MonitorSmartphone } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, resetCsrf } from '@/lib/api';
+import { api, ApiRequestError, resetCsrf } from '@/lib/api';
 import { queryClient } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,19 +14,33 @@ export function LoginPage({ initialMode = 'login', initialEmail = '', banner }: 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [form, setForm] = useState({ email: initialEmail, password: '', displayName: '', code: '' });
   const [busy, setBusy] = useState(false);
+  const [loginMethod, setLoginMethod] = useState<'password' | 'code'>('password');
+  const [codeSent, setCodeSent] = useState(false);
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
-      if (mode === 'login') await api('/api/v1/auth/login', { method: 'POST', body: { email: form.email, password: form.password } });
+      if (mode === 'login') {
+        if (loginMethod === 'code') {
+          if (!codeSent) {
+            await api('/api/v1/auth/login-code/request', { method: 'POST', body: { email: form.email } });
+            setCodeSent(true);
+            return;
+          }
+          await api('/api/v1/auth/login-code/verify', { method: 'POST', body: { email: form.email, code: form.code } });
+        } else {
+          await api('/api/v1/auth/login', { method: 'POST', body: { email: form.email, password: form.password } });
+        }
+      }
       if (mode === 'register') await api('/api/v1/auth/register', { method: 'POST', body: { email: form.email, password: form.password, displayName: form.displayName } });
       if (mode === 'device') await api('/api/v1/auth/device/pair', { method: 'POST', body: { code: form.code } });
       resetCsrf();
       await queryClient.resetQueries({ queryKey: ['me'] });
     } catch (err) {
       toast.error((err as Error).message);
+      if (mode === 'register' && err instanceof ApiRequestError && err.code === 'EMAIL_DELIVERY_FAILED') await queryClient.resetQueries({ queryKey: ['me'] });
     } finally {
       setBusy(false);
     }
@@ -50,6 +64,9 @@ export function LoginPage({ initialMode = 'login', initialEmail = '', banner }: 
                 </button>
               ))}
             </div>
+            {mode === 'login' && <div className="mb-5 flex gap-2" aria-label="Sign-in method">
+              {(['password', 'code'] as const).map((method) => <Button key={method} type="button" variant={loginMethod === method ? 'secondary' : 'ghost'} className="flex-1" aria-pressed={loginMethod === method} onClick={() => { setLoginMethod(method); setCodeSent(false); setForm((f) => ({ ...f, code: '' })); }}>{method === 'password' ? 'Password' : 'Email code (OTP)'}</Button>)}
+            </div>}
             <form onSubmit={submit} className="space-y-4">
               {mode === 'device' ? (
                 <>
@@ -69,16 +86,21 @@ export function LoginPage({ initialMode = 'login', initialEmail = '', banner }: 
                     </Field>
                   )}
                   <Field label="Email">
-                    <Input type="email" value={form.email} onChange={set('email')} autoComplete="email" required autoFocus />
+                    <Input type="email" value={form.email} onChange={(e) => { set('email')(e); setCodeSent(false); }} autoComplete="email" required autoFocus />
                   </Field>
+                  {mode === 'login' && loginMethod === 'code' ? (codeSent && <Field label="Email code" hint="If an account exists, we emailed a code valid for 15 minutes. Check Spam too. In SES sandbox, your address must first be verified by AWS.">
+                    <Input value={form.code} onChange={set('code')} inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} autoComplete="one-time-code" placeholder="6-digit code" required />
+                  </Field>) : (
                   <Field label="Password" hint={mode === 'register' ? 'At least 10 characters. We’ll email you a 6-digit code to confirm your account.' : undefined}>
                     <Input type="password" value={form.password} onChange={set('password')} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'register' ? 10 : undefined} required />
                   </Field>
+                  )}
                 </>
               )}
               <Button type="submit" size="lg" className="w-full" disabled={busy}>
-                {mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : 'Pair this display'}
+                {mode === 'login' ? (loginMethod === 'code' && !codeSent ? 'Email me a code' : 'Sign in') : mode === 'register' ? 'Create account' : 'Pair this display'}
               </Button>
+              {mode === 'login' && loginMethod === 'code' && codeSent && <Button type="button" variant="ghost" className="w-full" onClick={() => { setCodeSent(false); setForm((f) => ({ ...f, code: '' })); }}>Request a new code</Button>}
             </form>
             {import.meta.env.DEV && mode === 'login' && (
               <button className="mt-4 w-full text-center text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => setForm((f) => ({ ...f, email: 'demo@familyhub.local', password: 'FamilyHub!2024' }))}>

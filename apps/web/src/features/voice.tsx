@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { Mic, X } from 'lucide-react';
 import type { CalendarDTO, EventOccurrenceDTO, MemberDTO } from '@familyhub/shared';
 import { api, ApiRequestError, hh } from '@/lib/api';
 import { queryClient } from '@/lib/queryClient';
-import type { Household, ListSummary, Task } from '@/lib/queries';
+import { useHousehold, type Household, type ListSummary, type Task } from '@/lib/queries';
 import { cn, uuid } from '@/lib/utils';
 import { capitalize, parseCommand, type VoiceCommand } from '@/lib/voice/parse';
-import { listen, speak, stopListening, voiceSupported } from '@/lib/voice/speech';
+import { listen, speak, stopListening, stopSpeaking, voiceSupported } from '@/lib/voice/speech';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { fromTzInput, zoned } from '@/lib/time';
 
 const HELP = 'Try: "add task call the plumber tomorrow at 5 pm", "add milk and eggs to the grocery list", "add event dentist Friday at 4 pm", "what\'s on today", or "which chores are left".';
 
@@ -16,7 +19,7 @@ const when = (d: Date, now = new Date()) =>
 
 const listJoin = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
-async function run(hid: string, cmd: VoiceCommand): Promise<string> {
+async function run(hid: string, cmd: VoiceCommand, tz: string): Promise<string> {
   const members = await api<MemberDTO[]>(hh(hid, '/members'));
   const findMember = (name?: string) => (name ? members.find((m) => m.firstName.toLowerCase() === name.toLowerCase() || m.displayName.toLowerCase() === name.toLowerCase()) : undefined);
 
@@ -28,7 +31,7 @@ async function run(hid: string, cmd: VoiceCommand): Promise<string> {
     case 'task': {
       const m = findMember(cmd.memberName);
       const title = capitalize(m || !cmd.memberName ? cmd.title : `${cmd.title} for ${cmd.memberName}`);
-      await api(hh(hid, '/tasks'), { method: 'POST', body: { kind: 'TASK', title, dueAt: cmd.due?.toISOString() ?? null, memberIds: m ? [m.id] : [] } });
+      await api(hh(hid, '/tasks'), { method: 'POST', body: { kind: 'TASK', title, dueAt: cmd.due ? fromTzInput(format(cmd.due, "yyyy-MM-dd'T'HH:mm"), tz).toISOString() : null, memberIds: m ? [m.id] : [] } });
       void queryClient.invalidateQueries({ queryKey: ['tasks'] });
       return `Added task: ${title}${m ? ` for ${m.displayName}` : ''}${cmd.due ? `, due ${when(cmd.due)}` : ''}.`;
     }
@@ -47,7 +50,7 @@ async function run(hid: string, cmd: VoiceCommand): Promise<string> {
       if (!cal) return 'I could not find a family calendar to add this to.';
       const m = findMember(cmd.memberName);
       const ymd = format(cmd.start, 'yyyy-MM-dd');
-      const startAt = cmd.allDay ? new Date(`${ymd}T00:00:00Z`) : cmd.start;
+      const startAt = cmd.allDay ? new Date(`${ymd}T00:00:00Z`) : fromTzInput(format(cmd.start, "yyyy-MM-dd'T'HH:mm"), tz);
       const endAt = new Date(startAt.getTime() + (cmd.allDay ? 86400000 : 3600000));
       const title = capitalize(cmd.title);
       await api(hh(hid, '/events'), { method: 'POST', body: { calendarId: cal.id, title, startAt: startAt.toISOString(), endAt: endAt.toISOString(), allDay: cmd.allDay, timezone: household.timezone, memberIds: m ? [m.id] : [] } });
@@ -84,23 +87,39 @@ async function run(hid: string, cmd: VoiceCommand): Promise<string> {
 
 /** Floating mic for the paired home display: speak a command, it acts and answers out loud. */
 export function VoiceButton({ householdId }: { householdId: string }) {
-  const [state, setState] = useState<'idle' | 'listening' | 'working' | 'done'>('idle');
+  const [state, setState] = useState<'idle' | 'listening' | 'review' | 'working' | 'done'>('idle');
+  const timezone = useHousehold().data?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const operation = useRef(0);
   const [heard, setHeard] = useState('');
   const [reply, setReply] = useState('');
   const [ok, setOk] = useState(true);
-  if (!voiceSupported()) return null;
+  useEffect(() => () => { operation.current++; stopListening(); stopSpeaking(); }, []);
+  const close = () => { operation.current++; stopListening(); stopSpeaking(); setState('idle'); };
 
   const start = async () => {
+    if (state === 'working') return;
     if (state === 'listening') { stopListening(); return; }
     setHeard(''); setReply(''); setOk(true);
     setState('listening');
+    const op = ++operation.current;
     try {
       const text = await listen();
+      if (op !== operation.current) return;
       if (!text) { setState('done'); setOk(false); setReply('I didn’t hear anything. Tap the mic and try again.'); return; }
       setHeard(text);
+      setState('review');
+    } catch (e) {
+      if (op !== operation.current) return;
+      setOk(false); setReply(`${(e as Error).message} You can type your command below instead.`); setState('review');
+    }
+  };
+
+  const execute = async () => {
+    if (state === 'working' || !heard.trim()) return;
+    try {
       setState('working');
-      const cmd = parseCommand(text);
-      const answer = await run(householdId, cmd);
+      const cmd = parseCommand(heard, zoned(new Date(), timezone));
+      const answer = await run(householdId, cmd, timezone);
       setOk(cmd.kind !== 'unknown');
       setReply(answer);
       setState('done');
@@ -119,17 +138,18 @@ export function VoiceButton({ householdId }: { householdId: string }) {
           <div className="flex items-start gap-3">
             <span className={cn('mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full', state === 'listening' ? 'animate-pulse bg-primary text-primary-foreground' : ok ? 'bg-primary/10 text-primary' : 'bg-amber-500/15 text-amber-700')}><Mic className="h-5 w-5" /></span>
             <div className="min-w-0 flex-1 space-y-1">
-              <p className="text-sm font-semibold">{state === 'listening' ? 'Listening… say a command' : state === 'working' ? 'Working on it…' : ok ? 'Done' : 'Hmm'}</p>
-              {heard && <p className="text-sm italic text-muted-foreground">“{heard}”</p>}
+              <p className="text-sm font-semibold">{state === 'listening' ? 'Listening… say a command' : state === 'working' ? 'Working on it…' : state === 'review' ? 'Check your command' : ok ? 'Done' : 'Hmm'}</p>
+              {state === 'review' ? <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); void execute(); }}><Input aria-label="Your voice command" value={heard} onChange={(e) => setHeard(e.target.value)} placeholder="Add task call the plumber tomorrow" /><Button type="submit" disabled={!heard.trim()}>Run command</Button></form> : heard && <p className="text-sm italic text-muted-foreground">“{heard}”</p>}
               {reply && <p className="text-[15px] leading-relaxed">{reply}</p>}
               {state === 'listening' && !heard && <p className="text-xs leading-relaxed text-muted-foreground">{HELP}</p>}
             </div>
-            <button className="-m-1 rounded-full p-2 text-muted-foreground hover:bg-muted" aria-label="Close" onClick={() => { stopListening(); setState('idle'); }}><X className="h-4 w-4" /></button>
+            <button className="-m-1 rounded-full p-2 text-muted-foreground hover:bg-muted" aria-label="Close voice command" disabled={state === 'working'} onClick={close}><X className="h-4 w-4" /></button>
           </div>
         </div>
       )}
       <button
-        onClick={() => void start()}
+        onClick={() => { if (voiceSupported()) void start(); else { setState('review'); setReply('Speech recognition is unavailable. Type a command below.'); } }}
+        disabled={state === 'working'}
         aria-label="Voice command"
         className={cn('fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lift transition-transform active:scale-95 md:bottom-6 md:left-6 md:right-auto', state === 'listening' && 'ring-8 ring-primary/25')}
       >

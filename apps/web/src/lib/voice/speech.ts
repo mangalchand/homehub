@@ -1,4 +1,5 @@
 import { isNativeApp } from '../nativePush';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 interface SpeechPlugin {
   available(): Promise<{ available: boolean }>;
@@ -23,27 +24,30 @@ interface WebRecognition {
 }
 type WebRecognitionCtor = new () => WebRecognition;
 
-const plugins = () => (window as unknown as { Capacitor?: { Plugins?: { SpeechRecognition?: SpeechPlugin; TextToSpeech?: TtsPlugin } } }).Capacitor?.Plugins;
+const speech = registerPlugin<SpeechPlugin>('SpeechRecognition');
+const tts = registerPlugin<TtsPlugin>('TextToSpeech');
 const webCtor = () => {
   const w = window as unknown as { SpeechRecognition?: WebRecognitionCtor; webkitSpeechRecognition?: WebRecognitionCtor };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 };
 
-export const voiceLang = () => navigator.language || 'en-US';
-export const voiceSupported = () => (isNativeApp() ? Boolean(plugins()?.SpeechRecognition) : Boolean(webCtor()));
+export const voiceLang = () => navigator.language?.startsWith('en') ? navigator.language : 'en-IN';
+export const voiceSupported = () => (isNativeApp() ? Capacitor.isPluginAvailable('SpeechRecognition') : Boolean(webCtor()));
 
 let current: WebRecognition | null = null;
 
 /** Listens for one phrase and returns what was heard ('' if nothing). */
 export async function listen(lang = voiceLang()): Promise<string> {
-  const sr = plugins()?.SpeechRecognition;
-  if (isNativeApp() && sr) {
+  stopSpeaking();
+  const sr = speech;
+  if (isNativeApp()) {
     const { available } = await sr.available();
     if (!available) throw new Error('Speech recognition is not available on this device. Install or update the Google app.');
     let perm = await sr.checkPermissions();
     if (perm.speechRecognition !== 'granted') perm = await sr.requestPermissions();
     if (perm.speechRecognition !== 'granted') throw new Error('Microphone permission is needed for voice commands.');
-    const r = await sr.start({ language: lang, maxResults: 3, partialResults: false, popup: false });
+    // Use Android's recognition activity: results are final and the system owns its microphone lifecycle.
+    const r = await sr.start({ language: lang, maxResults: 3, partialResults: false, popup: true, prompt: 'Say a FamilyHub command in English' });
     return r.matches?.[0] ?? '';
   }
   const Ctor = webCtor();
@@ -64,12 +68,16 @@ export async function listen(lang = voiceLang()): Promise<string> {
 
 export function stopListening() {
   current?.stop();
-  void plugins()?.SpeechRecognition?.stop().catch(() => undefined);
+  if (isNativeApp()) void speech.stop().catch(() => undefined);
+}
+
+export function stopSpeaking() {
+  if (isNativeApp()) void tts.stop().catch(() => undefined);
+  window.speechSynthesis?.cancel();
 }
 
 export async function speak(text: string, lang = voiceLang()) {
-  const tts = plugins()?.TextToSpeech;
-  if (isNativeApp() && tts) {
+  if (isNativeApp()) {
     await tts.speak({ text, lang, rate: 1.0, category: 'ambient' }).catch(() => undefined);
     return;
   }

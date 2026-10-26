@@ -67,6 +67,7 @@ export function homeRouter() {
     const c = ctx(req);
     const list = await prisma.list.create({ data: { householdId: c.householdId, name: body.name, type: body.type, icon: body.icon ?? null, color: body.color ?? null, isTemplate: body.isTemplate } });
     publishList(c.householdId, list.id);
+    await notify(c.householdId, { type: 'list.created', title: `New list: ${list.name}`, url: `/lists/${list.id}` }, { except: c.actor.kind === 'member' ? c.actor.memberId : null });
     return list;
   });
 
@@ -150,7 +151,7 @@ export function homeRouter() {
         },
       });
       publishList(c.householdId, list.id);
-      void notify(c.householdId, { type: 'list.item_added', title: `Added to ${list.name}`, body: item.name, url: `/lists/${list.id}`, external: false }, { except: c.actor.kind === 'member' ? c.actor.memberId : null, dedupeKey: `listadd:${list.id}:${Math.floor(Date.now() / 600000)}` });
+      await notify(c.householdId, { type: 'list.item_added', title: `Added to ${list.name}`, body: item.name, url: `/lists/${list.id}` }, { except: c.actor.kind === 'member' ? c.actor.memberId : null, dedupeKey: `listadd:${item.id}` });
       return itemDTO(item);
     },
   );
@@ -299,13 +300,21 @@ export function homeRouter() {
   // ── Notifications ──
   route(m, { method: 'get', path: '/notifications', summary: 'In-app notifications for the current member', tags: ['Notifications'] }, async (req) => {
     const c = ctx(req);
-    if (c.actor.kind !== 'member') return [];
+    if (c.actor.kind === 'device') {
+      const rows = await prisma.notification.findMany({ where: { householdId: c.householdId, memberId: null }, include: { deviceReads: { where: { deviceId: c.actor.deviceId } } }, orderBy: { createdAt: 'desc' }, take: 100 });
+      return rows.map(({ deviceReads, ...r }) => ({ ...r, readAt: deviceReads[0]?.readAt ?? null }));
+    }
     return prisma.notification.findMany({ where: { householdId: c.householdId, memberId: c.actor.memberId }, orderBy: { createdAt: 'desc' }, take: 50 });
   });
 
   route(m, { method: 'post', path: '/notifications/read', summary: 'Mark notifications as read', tags: ['Notifications'], body: z.object({ ids: z.array(z.string().uuid()).max(100).optional() }) }, async (req, _res, { body }) => {
     const c = ctx(req);
-    if (c.actor.kind !== 'member') return { updated: 0 };
+    if (c.actor.kind === 'device') {
+      const deviceId = c.actor.deviceId;
+      const rows = await prisma.notification.findMany({ where: { householdId: c.householdId, memberId: null, ...(body.ids ? { id: { in: body.ids } } : {}), deviceReads: { none: { deviceId } } }, select: { id: true } });
+      const r = await prisma.deviceNotificationRead.createMany({ data: rows.map((n) => ({ deviceId, notificationId: n.id })), skipDuplicates: true });
+      return { updated: r.count };
+    }
     const r = await prisma.notification.updateMany({
       where: { householdId: c.householdId, memberId: c.actor.memberId, readAt: null, ...(body.ids ? { id: { in: body.ids } } : {}) },
       data: { readAt: new Date() },

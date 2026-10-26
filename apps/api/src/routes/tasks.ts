@@ -176,7 +176,7 @@ export function tasksRouter() {
       });
       await audit(req, { householdId: c.householdId, action: 'task.created', entityType: 'task', entityId: t.id });
       realtime.publish(c.householdId, { type: 'tasks.changed', entityId: t.id });
-      void notify(c.householdId, { type: body.kind === 'CHORE' ? 'chore.assigned' : 'task.created', title: body.kind === 'CHORE' ? `New chore: ${body.title}` : `New task: ${body.title}`, body: body.points ? `${body.points} points` : undefined, url: '/chores' }, { to: body.memberIds.length ? body.memberIds : undefined, except: c.actor.kind === 'member' ? c.actor.memberId : null });
+      void notify(c.householdId, { type: body.kind === 'CHORE' ? 'chore.assigned' : 'task.created', title: body.kind === 'CHORE' ? `New chore: ${body.title}` : `New task: ${body.title}`, body: body.points ? `${body.points} points` : undefined, url: '/chores', householdFeed: true }, { to: body.memberIds.length ? body.memberIds : undefined, except: c.actor.kind === 'member' ? c.actor.memberId : null });
       return taskDTO(t, localToday(c.household.timezone), c.household.timezone);
     },
   );
