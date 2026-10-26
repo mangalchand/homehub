@@ -2,6 +2,12 @@
 include ':capacitor-android'
 project(':capacitor-android').projectDir = new File('../../../node_modules/.pnpm/@capacitor+android@6.2.2_@capacitor+core@6.2.2/node_modules/@capacitor/android/capacitor')
 
+include ':capacitor-community-speech-recognition'
+project(':capacitor-community-speech-recognition').projectDir = new File('../../../node_modules/.pnpm/@capacitor-community+speech-recognition@6.0.1_@capacitor+core@6.2.2/node_modules/@capacitor-community/speech-recognition/android')
+
+include ':capacitor-community-text-to-speech'
+project(':capacitor-community-text-to-speech').projectDir = new File('../../../node_modules/.pnpm/@capacitor-community+text-to-speech@4.1.1_@capacitor+core@6.2.2/node_modules/@capacitor-community/text-to-speech/android')
+
 include ':capacitor-push-notifications'
 project(':capacitor-push-notifications').projectDir = new File('../../../node_modules/.pnpm/@capacitor+push-notifications@6.0.5_@capacitor+core@6.2.2/node_modules/@capacitor/push-notifications/android')
 

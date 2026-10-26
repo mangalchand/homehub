@@ -4,6 +4,7 @@ import { CalendarDays, Gift, Images, LayoutGrid, Lock, Maximize, Menu, Moon, Set
 import { Screensaver } from '@/features/photos';
 import { NotificationBell } from './NotificationBell';
 import { DeviceJoinPrompt } from '@/features/join';
+import { VoiceButton } from '@/features/voice';
 import { registerNativePush } from '@/lib/nativePush';
 import { Avatar } from './ui/misc';
 import { toast } from 'sonner';
@@ -233,6 +234,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
       </Dialog>
       {isDevice && <DeviceJoinPrompt />}
+      {isDevice && householdId && <VoiceButton householdId={householdId} />}
       <PinDialog open={pinOpen} onOpenChange={setPinOpen} />
       <Screensaver enabled={kiosk} idleMinutes={5} />
     </div>

@@ -18,7 +18,7 @@ import { audit } from '../lib/audit.js';
 import { badRequest, conflict, forbidden, notFound, unprocessable } from '../lib/errors.js';
 import { realtime } from '../lib/realtime.js';
 import { route, type Mount } from '../lib/route.js';
-import { ctx, householdContext, requireCap } from '../auth/context.js';
+import { assertCap, ctx, householdContext, requireCap } from '../auth/context.js';
 import { expandOccurrences, stripRrulePrefix } from '../calendar/recurrence.js';
 import { notify } from '../lib/notify.js';
 
@@ -148,9 +148,11 @@ export function tasksRouter() {
 
   route(
     m,
-    { method: 'post', path: '/tasks', summary: 'Create a task or chore', tags: ['Tasks'], body: createTaskSchema, status: 201, middleware: [requireCap('tasks.manage')] },
+    { method: 'post', path: '/tasks', summary: 'Create a task or chore (home displays may add simple one-off tasks without the PIN)', tags: ['Tasks'], body: createTaskSchema, status: 201 },
     async (req, _res, { body }) => {
       const c = ctx(req);
+      const simpleTask = body.kind === 'TASK' && !body.rrule && body.points === 0 && !body.requiresApproval;
+      if (!(can(c.actor, 'tasks.manage') || (c.actor.kind === 'device' && simpleTask))) assertCap(req, 'tasks.manage');
       await assertMembers(c.householdId, body.memberIds);
       const t = await prisma.task.create({
         data: {

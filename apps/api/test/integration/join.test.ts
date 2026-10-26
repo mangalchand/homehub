@@ -111,4 +111,15 @@ describe('joining a household', () => {
     expect(inv.status).toBe(201);
     expect(inv.body.acceptUrl).toContain('/invite/');
   });
+
+  it('lets a home display add a simple task by voice without the PIN, but not chores', async () => {
+    const { household } = await makeHousehold();
+    const base = `/api/v1/households/${household.id}`;
+    const device = await prisma.device.create({ data: { householdId: household.id, name: 'Wall', pairedAt: new Date() } });
+    const token = randomToken(32);
+    await prisma.session.create({ data: { tokenHash: sha256(token), deviceId: device.id, householdId: household.id, expiresAt: new Date(Date.now() + 86400000) } });
+    const send = (body: object) => request(app).post(`${base}/tasks`).set('Cookie', `fh_session=${token}; fh_csrf=c`).set('x-csrf-token', 'c').send(body);
+    expect((await send({ kind: 'TASK', title: 'Call the plumber' })).status).toBe(201);
+    expect((await send({ kind: 'CHORE', title: 'Free points', points: 100 })).status).toBe(403);
+  });
 });
