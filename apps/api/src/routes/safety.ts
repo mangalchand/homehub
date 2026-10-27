@@ -75,15 +75,15 @@ async function lockActor(tx: Tx, c: HouseholdContext) {
 
 export function safetyRouter() {
   const router = Router({ mergeParams: true });
-  router.use(householdContext);
-  router.use(async (req, _res, next) => {
+  router.use('/safety', householdContext);
+  router.use('/safety', async (req, _res, next) => {
     try {
       const c = ctx(req);
       if (c.actor.kind === 'device' && !await prisma.device.findFirst({ where: { id: c.actor.deviceId, householdId: c.householdId, revokedAt: null, pairedAt: { not: null } }, select: { id: true } })) throw notFound('Household');
       next();
     } catch (err) { next(err); }
   });
-  router.use((_req, res, next) => { res.set('Cache-Control', 'no-store, private'); next(); });
+  router.use('/safety', (_req, res, next) => { res.set('Cache-Control', 'no-store, private'); next(); });
   const m: Mount = { router, prefix: '/api/v1/households/:householdId' };
   const id = (value: string | undefined) => { if (!z.string().uuid().safeParse(value).success) throw notFound('Alert'); return value!; };
 
