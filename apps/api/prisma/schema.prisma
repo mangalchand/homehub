@@ -173,6 +173,14 @@ enum DeliveryStatus {
   SKIPPED
 }
 
+enum DailySummaryStatus {
+  PENDING
+  CLAIMED
+  SENT
+  FAILED
+  SKIPPED
+}
+
 // ───────────────────────── Identity & tenancy ─────────────────────────
 
 model User {
@@ -241,6 +249,11 @@ model Household {
   automationRules      AutomationRule[]
   pushSubscriptions    PushSubscription[]
   integrations         IntegrationConnection[]
+  emergencySessions    EmergencySession[]
+  notes                Note[]
+  attachments          Attachment[]
+  featureSettings      HouseholdFeatureSettings?
+  dailySummaryRuns     DailySummaryRun[]
 
   @@map("households")
 }
@@ -262,21 +275,25 @@ model HouseholdMember {
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
 
-  household          Household               @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  user               User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  ownedCalendars     Calendar[]              @relation("CalendarOwner")
-  calendarAccounts   CalendarAccount[]
-  calendarShares     CalendarShare[]
-  eventAssignments   EventMemberAssignment[]
-  taskAssignments    TaskAssignment[]
-  choreCompletions   ChoreCompletion[]       @relation("CompletedBy")
-  pushSubscriptions  PushSubscription[]
-  rewardTransactions RewardTransaction[]     @relation("TxMember")
-  notifications      Notification[]
-  invitations        Invitation[]
-  routines           Routine[]
-  schoolProfiles     SchoolProfile[]
+  household           Household               @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user                User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ownedCalendars      Calendar[]              @relation("CalendarOwner")
+  calendarAccounts    CalendarAccount[]
+  calendarShares      CalendarShare[]
+  eventAssignments    EventMemberAssignment[]
+  taskAssignments     TaskAssignment[]
+  choreCompletions    ChoreCompletion[]       @relation("CompletedBy")
+  pushSubscriptions   PushSubscription[]
+  rewardTransactions  RewardTransaction[]     @relation("TxMember")
+  notifications       Notification[]
+  invitations         Invitation[]
+  routines            Routine[]
+  schoolProfiles      SchoolProfile[]
+  emergencySessions   EmergencySession[]
+  authoredNotes       Note[]
+  uploadedAttachments Attachment[]
 
+  @@unique([householdId, id])
   @@unique([householdId, userId])
   @@index([householdId])
   @@map("household_members")
@@ -317,12 +334,16 @@ model Device {
   settings         Json       @default("{}")
   createdAt        DateTime   @default(now()) @map("created_at")
 
-  household Household         @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  sessions  Session[]
-  layouts   DashboardLayout[]
-  pushSubscriptions PushSubscription[]
-  notificationReads DeviceNotificationRead[]
+  household           Household                @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  sessions            Session[]
+  layouts             DashboardLayout[]
+  pushSubscriptions   PushSubscription[]
+  notificationReads   DeviceNotificationRead[]
+  emergencySessions   EmergencySession[]
+  authoredNotes       Note[]
+  uploadedAttachments Attachment[]
 
+  @@unique([householdId, id])
   @@index([householdId])
   @@map("devices")
 }
@@ -674,9 +695,134 @@ model Task {
   assignments TaskAssignment[]
   completions ChoreCompletion[]
   reminders   Reminder[]
+  attachments Attachment[]
 
+  @@unique([householdId, id])
   @@index([householdId, status])
   @@map("tasks")
+}
+
+// ───────────────────── Family safety, notes & summaries ─────────────────────
+
+/// One latest location only. Never copy coordinates into audit logs or realtime messages.
+/// Actor relations retain history: deactivate/revoke actors; purge their feature rows before hard deletion.
+model EmergencySession {
+  id             String    @id @default(uuid()) @db.Uuid
+  householdId    String    @map("household_id") @db.Uuid
+  sourceMemberId String?   @map("source_member_id") @db.Uuid
+  sourceDeviceId String?   @map("source_device_id") @db.Uuid
+  latitude       Float?
+  longitude      Float?
+  accuracyMeters Float?    @map("accuracy_meters")
+  locationAt     DateTime? @map("location_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  expiresAt      DateTime  @map("expires_at")
+  stoppedAt      DateTime? @map("stopped_at")
+
+  household    Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  sourceMember HouseholdMember? @relation(fields: [householdId, sourceMemberId], references: [householdId, id], onDelete: NoAction, onUpdate: NoAction)
+  sourceDevice Device?          @relation(fields: [householdId, sourceDeviceId], references: [householdId, id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([householdId, id])
+  @@index([householdId, stoppedAt, expiresAt])
+  @@index([householdId, sourceMemberId, createdAt])
+  @@index([householdId, sourceDeviceId, createdAt])
+  @@index([expiresAt])
+  @@map("emergency_sessions")
+}
+
+/// Author identity is derived from the authenticated household actor, never supplied by clients.
+model Note {
+  id             String   @id @default(uuid()) @db.Uuid
+  householdId    String   @map("household_id") @db.Uuid
+  title          String
+  body           String   @default("")
+  authorMemberId String?  @map("author_member_id") @db.Uuid
+  authorDeviceId String?  @map("author_device_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  household    Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  authorMember HouseholdMember? @relation(fields: [householdId, authorMemberId], references: [householdId, id], onDelete: NoAction, onUpdate: NoAction)
+  authorDevice Device?          @relation(fields: [householdId, authorDeviceId], references: [householdId, id], onDelete: NoAction, onUpdate: NoAction)
+  attachments  Attachment[]
+
+  @@unique([householdId, id])
+  @@index([householdId, updatedAt])
+  @@index([householdId, authorMemberId])
+  @@index([householdId, authorDeviceId])
+  @@map("notes")
+}
+
+/// The migration enforces exactly one task/note parent and one uploader, all within the same household.
+/// Parent/household deletion cascades metadata; the storage adapter must separately remove image objects.
+model Attachment {
+  id               String   @id @default(uuid()) @db.Uuid
+  householdId      String   @map("household_id") @db.Uuid
+  taskId           String?  @map("task_id") @db.Uuid
+  noteId           String?  @map("note_id") @db.Uuid
+  uploaderMemberId String?  @map("uploader_member_id") @db.Uuid
+  uploaderDeviceId String?  @map("uploader_device_id") @db.Uuid
+  storageKey       String   @unique @map("storage_key")
+  mimeType         String   @map("mime_type")
+  sizeBytes        Int      @map("size_bytes")
+  width            Int?
+  height           Int?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  household      Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  task           Task?            @relation(fields: [householdId, taskId], references: [householdId, id], onDelete: Cascade, onUpdate: NoAction)
+  note           Note?            @relation(fields: [householdId, noteId], references: [householdId, id], onDelete: Cascade, onUpdate: NoAction)
+  uploaderMember HouseholdMember? @relation(fields: [householdId, uploaderMemberId], references: [householdId, id], onDelete: NoAction, onUpdate: NoAction)
+  uploaderDevice Device?          @relation(fields: [householdId, uploaderDeviceId], references: [householdId, id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([householdId, id])
+  @@index([householdId, taskId, createdAt])
+  @@index([householdId, noteId, createdAt])
+  @@index([householdId, uploaderMemberId])
+  @@index([householdId, uploaderDeviceId])
+  @@map("attachments")
+}
+
+/// Existing households are backfilled; new households can create this singleton with an empty upsert.
+model HouseholdFeatureSettings {
+  householdId         String   @id @map("household_id") @db.Uuid
+  dailySummaryEnabled Boolean  @default(true) @map("daily_summary_enabled")
+  dailySummaryTime    String   @default("20:30") @map("daily_summary_time")
+  whatsappCallUrl     String?  @map("whatsapp_call_url")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@map("household_feature_settings")
+}
+
+/// A leased worker claim is fenced by leaseToken; retries reuse this household/local-date row.
+model DailySummaryRun {
+  id             String             @id @default(uuid()) @db.Uuid
+  householdId    String             @map("household_id") @db.Uuid
+  localDate      DateTime           @map("local_date") @db.Date
+  status         DailySummaryStatus @default(PENDING)
+  attempts       Int                @default(0)
+  claimedAt      DateTime?          @map("claimed_at")
+  leaseToken     String?            @map("lease_token") @db.Uuid
+  leaseExpiresAt DateTime?          @map("lease_expires_at")
+  nextAttemptAt  DateTime?          @default(now()) @map("next_attempt_at")
+  payload        Json?
+  lastError      String?            @map("last_error")
+  sentAt         DateTime?          @map("sent_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, localDate])
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
+  @@map("daily_summary_runs")
 }
 
 model TaskAssignment {
