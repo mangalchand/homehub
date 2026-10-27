@@ -41,6 +41,16 @@ async function setup() {
 }
 
 describe('household safety authorization and privacy', () => {
+  it('does not apply safety authorization or cache headers to neighboring household routes', async () => {
+    const adjacent = express();
+    adjacent.use('/api/v1/households/:householdId', safetyRouter());
+    adjacent.get('/api/v1/households/:householdId/neighbor', (_req, res) => res.sendStatus(204));
+    adjacent.use(errorHandler);
+    const response = await request(adjacent).get(`/api/v1/households/${crypto.randomUUID()}/neighbor`);
+    expect(response.status).toBe(204);
+    expect(response.headers['cache-control']).toBeUndefined();
+  });
+
   it('activates without GPS immediately, scopes identity/expiry, publishes only invalidation and safe notification content', async () => {
     const h = await setup();
     const messages: unknown[] = [];
