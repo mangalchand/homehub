@@ -6,6 +6,11 @@ export type VoiceCommand =
   | { kind: 'event'; title: string; start: Date; allDay: boolean; memberName?: string }
   | { kind: 'agenda'; day: 'today' | 'tomorrow' }
   | { kind: 'chores' }
+  | { kind: 'announce'; title: string }
+  | { kind: 'announcements' }
+  | { kind: 'notifications' }
+  | { kind: 'points'; memberName?: string }
+  | { kind: 'pendingTasks' }
   | { kind: 'help' }
   | { kind: 'unknown'; text: string };
 
@@ -84,6 +89,15 @@ export function parseCommand(raw: string, now = new Date()): VoiceCommand {
   if (!t) return { kind: 'unknown', text: raw };
 
   if (/^(?:help|what can (?:you|i) (?:do|say))/.test(t)) return { kind: 'help' };
+
+  const announce = t.match(/^announce\s+(.+)$/);
+  if (announce) return { kind: 'announce', title: capitalize(announce[1]!) };
+  if (/^read\s+(?:(?:the|our|active)\s+)?announcements$/.test(t)) return { kind: 'announcements' };
+  if (/^read\s+(?:(?:my|the|unread)\s+)?notifications$/.test(t)) return { kind: 'notifications' };
+  if (/^read\s+my\s+points$/.test(t)) return { kind: 'points' };
+  const points = t.match(/^how many points does\s+(.+?)\s+have$/);
+  if (points) return { kind: 'points', memberName: points[1]! };
+  if (/^read\s+(?:(?:the|our)\s+)?(?:pending|open|incomplete)\s+tasks$/.test(t)) return { kind: 'pendingTasks' };
 
   if (/\bchores?\b/.test(t) && /\b(?:what|which|left|remaining|show|read|any|how many)\b/.test(t)) return { kind: 'chores' };
 

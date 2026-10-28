@@ -5,6 +5,15 @@ import { parseCommand } from '../voice/parse';
 const now = new Date(2026, 9, 26, 10, 0);
 
 describe('voice command parser', () => {
+  it('recognizes household readouts before the existing agenda and loose task fallbacks', () => {
+    expect(parseCommand('Announce dinner is ready!')).toEqual({ kind: 'announce', title: 'Dinner is ready' });
+    expect(parseCommand('Please read announcements')).toEqual({ kind: 'announcements' });
+    expect(parseCommand('read unread notifications')).toEqual({ kind: 'notifications' });
+    expect(parseCommand('read my points')).toEqual({ kind: 'points' });
+    expect(parseCommand('How many points does Mary Jane have?')).toEqual({ kind: 'points', memberName: 'mary jane' });
+    expect(parseCommand('read pending tasks')).toEqual({ kind: 'pendingTasks' });
+    expect(parseCommand('announce')).toEqual({ kind: 'unknown', text: 'announce' });
+  });
   it('adds tasks with due dates and assignees', () => {
     const c = parseCommand('Add task call the plumber tomorrow at 5 pm', now);
     expect(c).toMatchObject({ kind: 'task', title: 'call the plumber' });

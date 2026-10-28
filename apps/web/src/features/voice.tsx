@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { Mic, X } from 'lucide-react';
-import type { CalendarDTO, EventOccurrenceDTO, MemberDTO } from '@familyhub/shared';
-import { api, ApiRequestError, hh } from '@/lib/api';
+import { createAnnouncementSchema, type CalendarDTO, type EventOccurrenceDTO, type MemberDTO } from '@familyhub/shared';
+import { api, hh } from '@/lib/api';
 import { queryClient } from '@/lib/queryClient';
-import { useHousehold, type Household, type ListSummary, type Task } from '@/lib/queries';
+import { useHousehold, useMe, type Announcement, type Household, type ListSummary, type Task } from '@/lib/queries';
+import { announcementReading, canAnnounce, currentVoiceSession, householdActor, pendingTasksReading, readNotifications, readPoints, voiceError, voiceScope } from '@/lib/voice/household';
 import { cn, uuid } from '@/lib/utils';
 import { capitalize, parseCommand, type VoiceCommand } from '@/lib/voice/parse';
 import { listen, speak, stopListening, stopSpeaking, voiceSupported } from '@/lib/voice/speech';
@@ -12,22 +13,45 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { fromTzInput, zoned } from '@/lib/time';
 
-const HELP = 'Try: "add task call the plumber tomorrow at 5 pm", "add milk and eggs to the grocery list", "add event dentist Friday at 4 pm", "what\'s on today", or "which chores are left".';
+const HELP = 'Try: "announce dinner is ready", "read announcements", "read notifications", "read my points", "how many points does Leo have", "read pending tasks", "add task call the plumber tomorrow at 5 pm", "add milk to the grocery list", "add event dentist Friday at 4 pm", or "what\'s on today".';
 
 const when = (d: Date, now = new Date()) =>
   `${isSameDay(d, now) ? 'today' : isSameDay(d, new Date(now.getTime() + 86400000)) ? 'tomorrow' : format(d, 'EEEE d MMMM')}${d.getHours() || d.getMinutes() ? ` at ${format(d, 'h:mm a')}` : ''}`;
 
 const listJoin = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
-async function run(hid: string, cmd: VoiceCommand, tz: string): Promise<string> {
+export async function runVoiceCommand(hid: string, cmd: VoiceCommand, tz: string, isCurrent = () => true): Promise<string> {
+  const checkCurrent = () => { if (!isCurrent()) throw new Error('Command cancelled.'); };
+  checkCurrent();
+  switch (cmd.kind) {
+    case 'help': return HELP;
+    case 'unknown': return `Sorry, I didn't understand "${cmd.text}". ${HELP}`;
+    case 'announce': {
+      const me = await currentVoiceSession(hid);
+      checkCurrent();
+      if (!canAnnounce(me, hid)) throw new Error(me.kind === 'device' ? 'Unlock parent mode with the household PIN before posting an announcement.' : 'You do not have permission to post announcements in this home.');
+      const parsed = createAnnouncementSchema.safeParse({ title: cmd.title });
+      if (!parsed.success) throw new Error('Announcements need a title of 1 to 140 characters. Edit the command and try again.');
+      await api(hh(hid, '/announcements'), { method: 'POST', body: parsed.data });
+      void queryClient.invalidateQueries({ queryKey: ['announcements', hid] });
+      return `Announcement posted: ${parsed.data.title}.`;
+    }
+    case 'announcements': {
+      await currentVoiceSession(hid);
+      return announcementReading(await api<Announcement[]>(hh(hid, '/announcements')));
+    }
+    case 'notifications': return readNotifications(hid);
+    case 'points': return readPoints(hid, { memberName: cmd.memberName });
+    case 'pendingTasks': {
+      await currentVoiceSession(hid);
+      return pendingTasksReading(await api<Task[]>(hh(hid, '/tasks?kind=TASK')));
+    }
+  }
   const members = await api<MemberDTO[]>(hh(hid, '/members'));
+  checkCurrent();
   const findMember = (name?: string) => (name ? members.find((m) => m.firstName.toLowerCase() === name.toLowerCase() || m.displayName.toLowerCase() === name.toLowerCase()) : undefined);
 
   switch (cmd.kind) {
-    case 'help':
-      return HELP;
-    case 'unknown':
-      return `Sorry, I didn't understand "${cmd.text}". ${HELP}`;
     case 'task': {
       const m = findMember(cmd.memberName);
       const title = capitalize(m || !cmd.memberName ? cmd.title : `${cmd.title} for ${cmd.memberName}`);
@@ -37,14 +61,16 @@ async function run(hid: string, cmd: VoiceCommand, tz: string): Promise<string> 
     }
     case 'grocery': {
       const lists = await api<ListSummary[]>(hh(hid, '/lists'));
+      checkCurrent();
       const list = lists.find((l) => l.type === 'GROCERY' && !l.isTemplate) ?? lists.find((l) => l.type === 'GROCERY');
       if (!list) return 'There is no grocery list yet. Create one in Lists first.';
-      for (const name of cmd.items) await api(hh(hid, `/lists/${list.id}/items`), { method: 'POST', body: { id: uuid(), name: capitalize(name) } });
+      for (const name of cmd.items) { checkCurrent(); await api(hh(hid, `/lists/${list.id}/items`), { method: 'POST', body: { id: uuid(), name: capitalize(name) } }); }
       void queryClient.invalidateQueries({ queryKey: ['lists'] });
       return `Added ${listJoin(cmd.items)} to ${list.name}.`;
     }
     case 'event': {
       const [cals, household] = await Promise.all([api<CalendarDTO[]>(hh(hid, '/calendars')), api<Household>(hh(hid, ''))]);
+      checkCurrent();
       const writable = cals.filter((c) => c.access === 'WRITE' && c.source === 'INTERNAL');
       const cal = writable.find((c) => c.category === 'FAMILY') ?? writable[0];
       if (!cal) return 'I could not find a family calendar to add this to.';
@@ -87,8 +113,23 @@ async function run(hid: string, cmd: VoiceCommand, tz: string): Promise<string> 
 
 /** Floating mic for the paired home display: speak a command, it acts and answers out loud. */
 export function VoiceButton({ householdId }: { householdId: string }) {
+  const me = useMe().data;
+  const actor = householdActor(me, householdId);
+  if (actor?.kind !== 'device') return null;
+  return <VoiceControl key={voiceScope(me, householdId)} householdId={householdId} microphone />;
+}
+
+/** Optional text entry for personal sessions. This never starts a microphone. */
+export function HouseholdCommandButton({ householdId }: { householdId: string }) {
+  const me = useMe().data;
+  const scope = voiceScope(me, householdId);
+  return scope ? <VoiceControl key={scope} householdId={householdId} microphone={false} /> : null;
+}
+
+function VoiceControl({ householdId, microphone }: { householdId: string; microphone: boolean }) {
   const [state, setState] = useState<'idle' | 'listening' | 'review' | 'working' | 'done'>('idle');
   const timezone = useHousehold().data?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const isDevice = useMe().data?.kind === 'device';
   const operation = useRef(0);
   const [heard, setHeard] = useState('');
   const [reply, setReply] = useState('');
@@ -116,18 +157,20 @@ export function VoiceButton({ householdId }: { householdId: string }) {
 
   const execute = async () => {
     if (state === 'working' || !heard.trim()) return;
+    const op = ++operation.current;
     try {
       setState('working');
       const cmd = parseCommand(heard, zoned(new Date(), timezone));
-      const answer = await run(householdId, cmd, timezone);
+      const answer = await runVoiceCommand(householdId, cmd, timezone, () => op === operation.current);
+      if (op !== operation.current) return;
       setOk(cmd.kind !== 'unknown');
       setReply(answer);
       setState('done');
-      void speak(answer);
+      void speak(answer).catch((e) => { if (op === operation.current) setReply(`${answer} ${voiceError(e)}`); });
     } catch (e) {
-      const msg = e instanceof ApiRequestError && e.status === 403 ? 'That needs parent mode. Tap the lock, enter the PIN, then try again.' : (e as Error).message;
+      if (op !== operation.current) return;
+      const msg = voiceError(e, isDevice);
       setOk(false); setReply(msg); setState('done');
-      void speak(msg);
     }
   };
 
@@ -143,17 +186,17 @@ export function VoiceButton({ householdId }: { householdId: string }) {
               {reply && <p className="text-[15px] leading-relaxed">{reply}</p>}
               {state === 'listening' && !heard && <p className="text-xs leading-relaxed text-muted-foreground">{HELP}</p>}
             </div>
-            <button className="-m-1 rounded-full p-2 text-muted-foreground hover:bg-muted" aria-label="Close voice command" disabled={state === 'working'} onClick={close}><X className="h-4 w-4" /></button>
+            <button className="-m-1 rounded-full p-2 text-muted-foreground hover:bg-muted" aria-label="Close voice command" onClick={close}><X className="h-4 w-4" /></button>
           </div>
         </div>
       )}
       <button
-        onClick={() => { if (voiceSupported()) void start(); else { setState('review'); setReply('Speech recognition is unavailable. Type a command below.'); } }}
+        onClick={() => { if (microphone && voiceSupported()) void start(); else { setState('review'); setReply(microphone ? 'Speech recognition is unavailable. Type a command below.' : 'Type a household command.'); } }}
         disabled={state === 'working'}
-        aria-label="Voice command"
+        aria-label={microphone ? 'Voice command' : 'Type household command'}
         className={cn('fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lift transition-transform active:scale-95 md:bottom-6 md:left-6 md:right-auto', state === 'listening' && 'ring-8 ring-primary/25')}
       >
-        <Mic className="h-7 w-7" />
+        {microphone ? <Mic className="h-7 w-7" /> : <span className="text-xs font-semibold">Command</span>}
       </button>
     </>
   );
