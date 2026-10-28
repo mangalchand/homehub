@@ -8,6 +8,7 @@ import {
   attachmentParent,
   cleanupAttachmentObjects,
   noteDTO,
+  queueAttachmentCleanup,
   NOTES_CHANGED_EVENT,
   requireAttachmentWrite,
 } from '../lib/attachments.js';
@@ -34,11 +35,33 @@ export function notesRouter() {
       path: '/notes',
       summary: 'List household notes',
       tags: ['Notes'],
-      query: z.object({ limit: z.coerce.number().int().min(1).max(200).default(100) }),
+      query: z.object({
+        limit: z.coerce.number().int().min(1).max(200).default(100),
+        before: z.string().uuid().optional(),
+      }),
     },
     async (req, _res, { query }) => {
+      const householdId = ctx(req).householdId;
+      let cursor: { id: string; updatedAt: Date } | null = null;
+      if (query.before) {
+        cursor = await prisma.note.findFirst({
+          where: { householdId, id: query.before },
+          select: { id: true, updatedAt: true },
+        });
+        if (!cursor) throw badRequest('Invalid notes page');
+      }
       const rows = await prisma.note.findMany({
-        where: { householdId: ctx(req).householdId },
+        where: {
+          householdId,
+          ...(cursor
+            ? {
+                OR: [
+                  { updatedAt: { lt: cursor.updatedAt } },
+                  { updatedAt: cursor.updatedAt, id: { gt: cursor.id } },
+                ],
+              }
+            : {}),
+        },
         include: { attachments },
         orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
         take: query.limit,
@@ -143,6 +166,7 @@ export function notesRouter() {
         const images = await db.attachment.findMany({
           where: { householdId: c.householdId, noteId: p.note!.id },
         });
+        await queueAttachmentCleanup(db, images);
         await db.note.delete({ where: { householdId_id: { householdId: c.householdId, id: p.note!.id } } });
         return images;
       });

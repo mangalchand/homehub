@@ -46,7 +46,7 @@ function TaskDialog({ open, onOpenChange, kind, task }: { open: boolean; onOpenC
         }}
       >
         <Field label="Title"><Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} required autoFocus /></Field>
-        <Field label="Description"><Textarea value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} maxLength={10000} /></Field>
+        <Field label="Description"><Textarea value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} maxLength={2000} /></Field>
         <Field label="Assign to">
           <div className="flex flex-wrap gap-2">
             {members.map((m) => {

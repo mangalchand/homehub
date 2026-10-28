@@ -1,4 +1,4 @@
-import { cleanupAttachmentObjects } from '../lib/attachments.js';
+import { cleanupAttachmentObjects, queueAttachmentCleanup } from '../lib/attachments.js';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -101,6 +101,7 @@ export function householdRouter() {
       const attachments = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM households WHERE id = ${c.householdId}::uuid FOR UPDATE`;
         const rows = await tx.attachment.findMany({ where: { householdId: c.householdId }, select: { id: true, storageKey: true } });
+        await queueAttachmentCleanup(tx, rows);
         await tx.household.delete({ where: { id: c.householdId } });
         return rows;
       });
