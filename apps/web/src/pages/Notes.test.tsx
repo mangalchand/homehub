@@ -158,7 +158,23 @@ describe('household notes', () => {
     page.rerender(page.element());
     await screen.findByText('No notes yet');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(api).toHaveBeenCalledWith('/api/v1/households/home-b/notes');
+    expect(api).toHaveBeenCalledWith('/api/v1/households/home-b/notes?limit=100');
+  });
+
+  it('loads older notes beyond the first page', async () => {
+    notes = Array.from({ length: 100 }, (_, index) =>
+      note({ id: `note-${index + 1}`, title: `Note ${index + 1}` }),
+    );
+    vi.mocked(api).mockImplementation(async (path) => {
+      if (String(path).includes('before=note-100'))
+        return [note({ id: 'note-101', title: 'Oldest note' })];
+      return notes;
+    });
+    view();
+    await screen.findByText('Note 1');
+    fireEvent.click(screen.getByRole('button', { name: 'Load older notes' }));
+    await screen.findByText('Oldest note');
+    expect(api).toHaveBeenCalledWith('/api/v1/households/home-a/notes?limit=100&before=note-100');
   });
 
   it('shows loading/save/delete failures without success or optimistic disappearance', async () => {

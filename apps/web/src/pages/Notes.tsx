@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, Plus, Pencil, Trash2 } from 'lucide-react';
 import type { NoteDTO } from '@familyhub/shared';
 import { api, hh } from '@/lib/api';
@@ -88,6 +88,8 @@ export default function NotesPage() {
   return hid ? <HouseholdNotes key={hid} householdId={hid} /> : null;
 }
 
+const NOTES_PAGE_SIZE = 100;
+
 function HouseholdNotes({ householdId }: { householdId: string }) {
   const qc = useQueryClient();
   const me = useMe().data;
@@ -95,11 +97,18 @@ function HouseholdNotes({ householdId }: { householdId: string }) {
   const members = useMembers().data ?? [];
   const [editing, setEditing] = useState<NoteDTO | 'new' | null>(null);
   const [deleting, setDeleting] = useState<NoteDTO | null>(null);
-  const notes = useQuery({
+  const notes = useInfiniteQuery({
     queryKey: ['notes', householdId],
-    queryFn: () => api<NoteDTO[]>(hh(householdId, '/notes')),
+    queryFn: ({ pageParam }) =>
+      api<NoteDTO[]>(
+        hh(householdId, `/notes?limit=${NOTES_PAGE_SIZE}${pageParam ? `&before=${pageParam}` : ''}`),
+      ),
+    initialPageParam: '',
+    getNextPageParam: (page) =>
+      page.length === NOTES_PAGE_SIZE ? page[page.length - 1]?.id : undefined,
     refetchInterval: 30_000,
   });
+  const noteRows = notes.data?.pages.flat() ?? [];
   const remove = useMutation({
     mutationFn: (id: string) => api(hh(householdId, `/notes/${id}`), { method: 'DELETE' }),
     networkMode: 'always',
@@ -141,7 +150,7 @@ function HouseholdNotes({ householdId }: { householdId: string }) {
           </button>
         </p>
       )}
-      {!notes.isLoading && !notes.error && !notes.data?.length && (
+      {!notes.isLoading && !notes.error && !noteRows.length && (
         <Card>
           <EmptyState
             icon={<FileText />}
@@ -151,7 +160,7 @@ function HouseholdNotes({ householdId }: { householdId: string }) {
         </Card>
       )}
       <div className="grid min-w-0 gap-4 md:grid-cols-2">
-        {notes.data?.map((note) => (
+        {noteRows.map((note) => (
           <Card key={note.id} className="min-w-0">
             <CardContent className="p-4">
               <div className="flex items-start gap-2">
@@ -194,6 +203,13 @@ function HouseholdNotes({ householdId }: { householdId: string }) {
           </Card>
         ))}
       </div>
+      {notes.hasNextPage && (
+        <div className="mt-4 text-center">
+          <Button variant="outline" onClick={() => void notes.fetchNextPage()} disabled={notes.isFetchingNextPage}>
+            {notes.isFetchingNextPage ? 'Loading…' : 'Load older notes'}
+          </Button>
+        </div>
+      )}
       {editing && (
         <NoteEditor
           key={editing === 'new' ? 'new' : editing.id}

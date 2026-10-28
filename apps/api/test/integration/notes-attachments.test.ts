@@ -11,7 +11,7 @@ import { sha256 } from '../../src/lib/crypto.js';
 import { errorHandler } from '../../src/lib/errors.js';
 import { storage } from '../../src/lib/storage.js';
 import { realtime } from '../../src/lib/realtime.js';
-import { thumbnailKey } from '../../src/lib/attachments.js';
+import { retryAttachmentObjectCleanup, thumbnailKey } from '../../src/lib/attachments.js';
 import { notesRouter } from '../../src/routes/notes.js';
 import { attachmentsRouter } from '../../src/routes/attachments.js';
 import { tasksRouter } from '../../src/routes/tasks.js';
@@ -160,6 +160,31 @@ describe('household notes and image attachments', () => {
     const failed = await h.owner.get(`${h.url}/attachments/${row.id}/file`);
     expect(failed.status).toBe(503);
     expect(JSON.stringify(failed.body)).not.toContain('sensitive-storage');
+  });
+
+  it('pages older notes with a stable updatedAt and id cursor', async () => {
+    const h = await fixture();
+    await prisma.note.update({ where: { id: h.note.id }, data: { updatedAt: new Date(Date.now() - 3_600_000) } });
+    const created = [];
+    for (let index = 0; index < 3; index++) {
+      created.push(
+        await prisma.note.create({
+          data: {
+            householdId: h.household.id,
+            authorMemberId: h.ownerMember.id,
+            title: `Paged ${index}`,
+            updatedAt: new Date(Date.now() - index * 60_000),
+          },
+        }),
+      );
+    }
+    const first = await h.owner.get(`${h.url}/notes?limit=2`);
+    expect(first.status).toBe(200);
+    expect(first.body.map((note: { id: string }) => note.id)).toEqual([created[0]!.id, created[1]!.id]);
+    const second = await h.owner.get(`${h.url}/notes?limit=2&before=${first.body[1].id}`);
+    expect(second.status).toBe(200);
+    expect(second.body.map((note: { id: string }) => note.id)).toEqual([created[2]!.id, h.note.id]);
+    expect((await h.owner.get(`${h.url}/notes?before=${crypto.randomUUID()}`)).status).toBe(400);
   });
 
   it('persists notes with server-derived authors, preserves omitted fields, and enforces author/admin rights', async () => {
@@ -346,13 +371,19 @@ describe('household notes and image attachments', () => {
     expect((await k.upload(`${h.url}/notes/${h.note.id}/attachments`, jpeg)).status).toBe(403);
     expect((await k.upload(`${h.url}/tasks/${h.task.id}/attachments`, jpeg)).status).toBe(403);
     const device = await prisma.device.create({ data: { householdId: h.household.id, name: 'Display' } });
+    const otherDevice = await prisma.device.create({ data: { householdId: h.household.id, name: 'Other display' } });
     const d = await client({ deviceId: device.id, householdId: h.household.id });
+    const d2 = await client({ deviceId: otherDevice.id, householdId: h.household.id });
     const simple = await d.post(`${h.url}/tasks`, { title: 'Display task', kind: 'TASK' });
     expect(simple.status).toBe(201);
-    const uploaded = await d.upload(`${h.url}/tasks/${simple.body.id}/attachments`, jpeg);
+    expect((await d.upload(`${h.url}/tasks/${simple.body.id}/attachments`, jpeg)).status).toBe(403);
+    expect((await d2.upload(`${h.url}/tasks/${simple.body.id}/attachments`, jpeg)).status).toBe(403);
+    const elevatedSimple = await client({ deviceId: device.id, householdId: h.household.id }, true);
+    const uploaded = await elevatedSimple.upload(`${h.url}/tasks/${simple.body.id}/attachments`, jpeg);
     expect(uploaded.status).toBe(201);
     expect(uploaded.body.uploaderDeviceId).toBe(device.id);
-    expect((await d.del(`${h.url}/attachments/${uploaded.body.id}`)).status).toBe(204);
+    expect((await d.del(`${h.url}/attachments/${uploaded.body.id}`)).status).toBe(403);
+    expect((await elevatedSimple.del(`${h.url}/attachments/${uploaded.body.id}`)).status).toBe(204);
     expect((await d.upload(`${h.url}/tasks/${h.task.id}/attachments`, jpeg)).status).toBe(403);
     const chore = await prisma.task.create({
       data: {
@@ -479,14 +510,16 @@ describe('household notes and image attachments', () => {
     const uploaded = await h.owner.upload(`${h.url}/notes/${h.note.id}/attachments`, await image());
     const row = await prisma.attachment.findUniqueOrThrow({ where: { id: uploaded.body.id } });
     const store = storage();
-    const realRemove = store.remove.bind(store);
-    const remove = vi
-      .spyOn(store, 'remove')
-      .mockRejectedValueOnce(new Error('transient'))
-      .mockImplementation(realRemove);
+    const remove = vi.spyOn(store, 'remove').mockRejectedValue(new Error('outage'));
     expect((await h.owner.del(`${h.url}/attachments/${row.id}`)).status).toBe(204);
-    expect(remove).toHaveBeenCalledTimes(3);
+    expect(remove).toHaveBeenCalledTimes(6);
+    expect(await prisma.attachmentObjectCleanup.count()).toBe(1);
+    expect(await store.get(row.storageKey)).not.toBeNull();
+    remove.mockRestore();
+    expect(await retryAttachmentObjectCleanup(new Date(Date.now() + 60_000))).toBe(0);
+    expect(await prisma.attachmentObjectCleanup.count()).toBe(0);
     expect(await store.get(row.storageKey)).toBeNull();
+    expect(await store.get(thumbnailKey(row.storageKey))).toBeNull();
     expect((await h.owner.get(`${h.url}/attachments/${row.id}/file`)).status).toBe(404);
   });
 

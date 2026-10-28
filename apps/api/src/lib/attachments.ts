@@ -1,6 +1,7 @@
 import type { Attachment, Note, Prisma, Task } from '@prisma/client';
 import { can, type AttachmentDTO, type NoteDTO } from '@familyhub/shared';
 import type { HouseholdContext } from '../auth/context.js';
+import { prisma } from '../db.js';
 import { forbidden, notFound } from './errors.js';
 import { storage } from './storage.js';
 import { logger } from '../logger.js';
@@ -21,16 +22,8 @@ export function canEditNote(c: HouseholdContext, note: Note) {
   );
 }
 
-export function canAttachToTask(c: HouseholdContext, task: Task) {
-  return (
-    can(c.actor, 'tasks.manage') ||
-    (c.actor.kind === 'device' &&
-      task.createdById === null &&
-      task.kind === 'TASK' &&
-      !task.rrule &&
-      task.points === 0 &&
-      !task.requiresApproval)
-  );
+export function canAttachToTask(c: HouseholdContext, _task: Task) {
+  return can(c.actor, 'tasks.manage');
 }
 
 /** Parent row locks serialize count checks, uploads and parent deletion. */
@@ -59,7 +52,7 @@ export async function attachmentParent(
 export function requireAttachmentWrite(allowed: boolean) {
   if (!allowed)
     throw forbidden(
-      'Only the note author or an admin may edit note images. Task images require task management permission; shared displays may add images to display-created simple tasks. Enter the household PIN for chores.',
+      'Only the note author or an admin may edit note images. Task images require task management permission; unlock the household PIN on shared displays.',
     );
 }
 
@@ -107,10 +100,29 @@ export function noteDTO(n: Note & { attachments: Attachment[] }): NoteDTO {
 
 export const thumbnailKey = (key: string) => `${key}.thumb.webp`;
 
+/** Persist object keys before metadata removal so a crash cannot lose them. */
+export async function queueAttachmentCleanup(
+  db: Prisma.TransactionClient | typeof prisma,
+  rows: Pick<Attachment, 'id' | 'storageKey'>[],
+) {
+  if (!rows.length) return;
+  await db.attachmentObjectCleanup.createMany({
+    data: rows.map((row) => ({ attachmentId: row.id, storageKey: row.storageKey })),
+    skipDuplicates: true,
+  });
+}
+
 /** Retry transient storage failures without exposing storage keys or vendor error details. */
 export async function cleanupAttachmentObjects(rows: Pick<Attachment, 'id' | 'storageKey'>[]) {
   let complete = true;
+  try {
+    await queueAttachmentCleanup(prisma, rows);
+  } catch {
+    logger.error('Attachment cleanup keys could not be queued');
+    complete = false;
+  }
   for (const row of rows) {
+    let rowComplete = true;
     for (const key of [row.storageKey, thumbnailKey(row.storageKey)]) {
       let removed = false;
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -122,14 +134,43 @@ export async function cleanupAttachmentObjects(rows: Pick<Attachment, 'id' | 'st
           /* Retry idempotent object deletion. */
         }
       }
-      if (!removed) {
-        complete = false;
-        logger.error(
-          { attachmentId: row.id },
-          'Attachment object cleanup failed; storage reconciliation required',
-        );
+      if (!removed) rowComplete = false;
+    }
+    try {
+      if (rowComplete) {
+        await prisma.attachmentObjectCleanup.deleteMany({ where: { storageKey: row.storageKey } });
+      } else {
+        await prisma.attachmentObjectCleanup.updateMany({
+          where: { storageKey: row.storageKey },
+          data: {
+            attempts: { increment: 1 },
+            nextAttemptAt: new Date(Date.now() + 60_000),
+            lastError: 'Storage deletion failed',
+          },
+        });
       }
+    } catch {
+      logger.error({ attachmentId: row.id }, 'Attachment cleanup state could not be updated');
+      rowComplete = false;
+    }
+    if (!rowComplete) {
+      complete = false;
+      logger.error({ attachmentId: row.id }, 'Attachment object cleanup queued for retry');
     }
   }
   return complete;
+}
+
+/** Process durable cleanup tombstones after restarts or storage outages. */
+export async function retryAttachmentObjectCleanup(now = new Date()) {
+  const rows = await prisma.attachmentObjectCleanup.findMany({
+    where: { nextAttemptAt: { lte: now } },
+    orderBy: { createdAt: 'asc' },
+    take: 100,
+  });
+  let remaining = 0;
+  for (const row of rows) {
+    if (!(await cleanupAttachmentObjects([{ id: row.attachmentId ?? row.id, storageKey: row.storageKey }]))) remaining++;
+  }
+  return remaining;
 }

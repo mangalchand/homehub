@@ -786,6 +786,22 @@ model Attachment {
   @@map("attachments")
 }
 
+/// Storage keys for attachment objects whose metadata has been removed.
+/// No household foreign key: cleanup rows must survive household deletion.
+model AttachmentObjectCleanup {
+  id            String   @id @default(uuid()) @db.Uuid
+  attachmentId  String?  @map("attachment_id") @db.Uuid
+  storageKey    String   @unique @map("storage_key")
+  attempts      Int      @default(0)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at")
+  lastError     String?  @map("last_error")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([nextAttemptAt])
+  @@map("attachment_object_cleanups")
+}
+
 /// Existing households are backfilled; new households can create this singleton with an empty upsert.
 model HouseholdFeatureSettings {
   householdId         String   @id @map("household_id") @db.Uuid

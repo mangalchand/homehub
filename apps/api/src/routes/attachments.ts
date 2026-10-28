@@ -13,6 +13,7 @@ import {
   canDeleteAttachment,
   cleanupAttachmentObjects,
   MAX_RECORD_IMAGES,
+  queueAttachmentCleanup,
   NOTES_CHANGED_EVENT,
   requireAttachmentWrite,
   thumbnailKey,
@@ -214,6 +215,7 @@ export function attachmentsRouter() {
         const current = await db.attachment.findFirst({ where: { householdId: c.householdId, id: row.id } });
         if (!current) throw notFound('Attachment');
         requireAttachmentWrite(canDeleteAttachment(c, current, p.canWrite));
+        await queueAttachmentCleanup(db, [current]);
         await db.attachment.delete({ where: { householdId_id: { householdId: c.householdId, id: row.id } } });
         if (parent.noteId)
           await db.note.update({ where: { id: parent.noteId }, data: { updatedAt: new Date() } });
