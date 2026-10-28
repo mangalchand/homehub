@@ -12,7 +12,7 @@ const device = (elevated = false): Me => ({ kind: 'device', device: { id: 'd', h
 const user = (role = 'ADULT'): Me => ({ kind: 'user', user: { id: 'u', email: 'local@example.test', displayName: 'Parent', hasPassword: true, emailVerified: true }, memberships: [{ householdId: 'h', householdName: 'Home', memberId: 'm', role }], session: { id: 's', pinElevatedUntil: null } });
 const members = [{ id: 'm', firstName: 'Mary', displayName: 'Mary Jane', isActive: true }, { id: 'l', firstName: 'Leo', displayName: 'Leo', isActive: true }] as MemberDTO[];
 const points = [{ memberId: 'm', available: 75, balance: 100, pending: -15 }, { memberId: 'l', available: 0, balance: 0, pending: 0 }];
-const announcement = (id: string, options: Partial<Announcement> = {}): Announcement => ({ id, title: id, body: null, priority: 'NORMAL', pinned: false, color: null, expiresAt: null, createdAt: '2026-10-26T12:00:00Z', ...options });
+const announcement = (id: string, options: Partial<Announcement> = {}): Announcement => ({ id, title: id, body: null, priority: 'NORMAL', pinned: false, color: null, expiresAt: null, repeatDaily: false, dailyTime: null, createdAt: '2026-10-26T12:00:00Z', ...options });
 const notification = (id: string, options: Partial<FeedNotification> = {}): FeedNotification => ({ id, householdId: 'h', memberId: null, title: id, body: 'Details', type: 'announcement', readAt: null, data: {}, createdAt: new Date().toISOString(), ...options });
 
 beforeEach(() => {
@@ -45,7 +45,7 @@ describe('announcement authority', () => {
   it('posts only through the existing secured endpoint after fresh session validation', async () => {
     vi.mocked(api).mockResolvedValueOnce(device(true)).mockResolvedValueOnce({});
     expect(await runVoiceCommand('h', { kind: 'announce', title: 'Dinner is ready' }, 'UTC')).toContain('Announcement posted');
-    expect(api).toHaveBeenLastCalledWith('/api/v1/households/h/announcements', { method: 'POST', body: { title: 'Dinner is ready', priority: 'NORMAL', pinned: false } });
+    expect(api).toHaveBeenLastCalledWith('/api/v1/households/h/announcements', { method: 'POST', body: { title: 'Dinner is ready', priority: 'NORMAL', pinned: false, repeatDaily: false } });
   });
   it('does not turn backend rejection or expired PIN into success', async () => {
     vi.mocked(api).mockResolvedValueOnce(device(true)).mockRejectedValueOnce(new ApiRequestError(403, 'FORBIDDEN', 'Enter PIN'));

@@ -42,7 +42,13 @@ export const passwordResetConfirmSchema = z.object({
   password: z.string().min(10).max(200),
 });
 export const loginCodeRequestSchema = z.object({ email: z.string().trim().toLowerCase().email() });
-export const loginCodeVerifySchema = z.object({ email: z.string().trim().toLowerCase().email(), code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code') });
+export const loginCodeVerifySchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Enter the 6-digit code'),
+});
 export const devicePairSchema = z.object({ code: z.string().trim().toUpperCase().min(6).max(12) });
 
 // ── Households ──
@@ -54,14 +60,22 @@ export const createHouseholdSchema = z.object({
 });
 export const householdSettingsSchema = z.object({
   weatherLocation: z
-    .object({ name: z.string().max(120), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180) })
+    .object({
+      name: z.string().max(120),
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+    })
     .nullable()
     .optional(),
   temperatureUnit: z.enum(['celsius', 'fahrenheit']).optional(),
   clockFormat: z.enum(['12h', '24h']).optional(),
   screensaverMinutes: z.number().int().min(0).max(240).optional(),
   nightMode: z
-    .object({ enabled: z.boolean(), start: z.string().regex(/^\d{2}:\d{2}$/), end: z.string().regex(/^\d{2}:\d{2}$/) })
+    .object({
+      enabled: z.boolean(),
+      start: z.string().regex(/^\d{2}:\d{2}$/),
+      end: z.string().regex(/^\d{2}:\d{2}$/),
+    })
     .optional(),
 });
 export const updateHouseholdSchema = z.object({
@@ -98,7 +112,10 @@ export const createInvitationSchema = z.object({
   memberId: z.string().uuid().optional(),
 });
 export const acceptInvitationSchema = z.object({ token: z.string().min(20).max(200) });
-const sixDigits = z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code');
+const sixDigits = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, 'Enter the 6-digit code');
 export const verifyCodeSchema = z.object({ code: sixDigits });
 export const approveJoinSchema = z.object({ code: sixDigits.optional() });
 
@@ -114,11 +131,15 @@ export const createCalendarSchema = z.object({
   visibility: z.enum(CALENDAR_VISIBILITIES).default('HOUSEHOLD'),
   showOnWallDisplay: z.boolean().default(true),
   ownerMemberId: z.string().uuid().nullable().optional(),
-  shares: z.array(z.object({ memberId: z.string().uuid(), access: z.enum(SHARE_ACCESS) })).max(50).optional(),
+  shares: z
+    .array(z.object({ memberId: z.string().uuid(), access: z.enum(SHARE_ACCESS) }))
+    .max(50)
+    .optional(),
 });
-export const updateCalendarSchema = createCalendarSchema
-  .partial()
-  .extend({ syncMode: z.enum(SYNC_MODES).optional(), refreshIntervalMinutes: z.number().int().min(15).max(1440).optional() });
+export const updateCalendarSchema = createCalendarSchema.partial().extend({
+  syncMode: z.enum(SYNC_MODES).optional(),
+  refreshIntervalMinutes: z.number().int().min(15).max(1440).optional(),
+});
 
 export const icsSubscribeSchema = z.object({
   url: z.string().trim().min(1).max(2000),
@@ -200,7 +221,11 @@ export const eventRangeQuery = z.object({
 });
 
 // ── Tasks / chores ──
-export const checklistItem = z.object({ id: z.string().min(1).max(64), title: z.string().min(1).max(200), done: z.boolean() });
+export const checklistItem = z.object({
+  id: z.string().min(1).max(64),
+  title: z.string().min(1).max(200),
+  done: z.boolean(),
+});
 export const createTaskSchema = z.object({
   kind: z.enum(TASK_KINDS).default('TASK'),
   title: z.string().trim().min(1).max(200),
@@ -216,7 +241,9 @@ export const createTaskSchema = z.object({
   checklist: z.array(checklistItem).max(50).default([]),
   memberIds: z.array(z.string().uuid()).max(20).default([]),
 });
-export const updateTaskSchema = createTaskSchema.partial().extend({ status: z.enum(['OPEN', 'DONE', 'ARCHIVED']).optional() });
+export const updateTaskSchema = createTaskSchema
+  .partial()
+  .extend({ status: z.enum(['OPEN', 'DONE', 'ARCHIVED']).optional() });
 export const completeTaskSchema = z.object({
   memberId: z.string().uuid(),
   /** YYYY-MM-DD occurrence date for recurring chores; defaults to today in household timezone. */
@@ -236,7 +263,12 @@ export const updateRewardSchema = createRewardSchema.partial();
 export const redeemRewardSchema = z.object({ memberId: z.string().uuid() });
 export const adjustPointsSchema = z.object({
   memberId: z.string().uuid(),
-  points: z.number().int().min(-10000).max(10000).refine((n) => n !== 0, 'Must be non-zero'),
+  points: z
+    .number()
+    .int()
+    .min(-10000)
+    .max(10000)
+    .refine((n) => n !== 0, 'Must be non-zero'),
   note: z.string().max(200).optional(),
 });
 
@@ -261,18 +293,34 @@ export const listItemFields = z.object({
 });
 /** Clients generate item ids (UUID) so offline creates can be replayed idempotently. */
 export const createListItemSchema = listItemFields.extend({ id: z.string().uuid() });
-export const updateListItemSchema = listItemFields.partial().extend({ expectedVersion: z.number().int().optional() });
+export const updateListItemSchema = listItemFields
+  .partial()
+  .extend({ expectedVersion: z.number().int().optional() });
 
 // ── Announcements ──
-export const createAnnouncementSchema = z.object({
+const announcementFields = z.object({
   title: z.string().trim().min(1).max(140),
   body: z.string().max(2000).nullable().optional(),
   priority: z.enum(ANNOUNCEMENT_PRIORITIES).default('NORMAL'),
   color: hexColor.nullable().optional(),
   pinned: z.boolean().default(false),
   expiresAt: isoDateTime.nullable().optional(),
+  repeatDaily: z.boolean().default(false),
+  dailyTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .nullable()
+    .optional(),
 });
-export const updateAnnouncementSchema = createAnnouncementSchema.partial();
+export const createAnnouncementSchema = announcementFields.superRefine((value, ctx) => {
+  if (value.repeatDaily && !value.dailyTime)
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['dailyTime'],
+      message: 'Choose a daily announcement time.',
+    });
+});
+export const updateAnnouncementSchema = announcementFields.partial();
 
 // ── Dashboard ──
 export const widgetSchema = z.object({

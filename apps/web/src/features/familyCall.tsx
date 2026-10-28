@@ -26,6 +26,7 @@ function HouseholdFamilyCallCard({ householdId, canManage }: { householdId: stri
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const [notifying, setNotifying] = useState(false);
   const settings = useQuery({
     queryKey: familyCallQueryKey(householdId),
     queryFn: () => api<FamilyCallSettings>(hh(householdId, '/family-call')),
@@ -50,6 +51,22 @@ function HouseholdFamilyCallCard({ householdId, canManage }: { householdId: stri
       setStatus('');
     },
   });
+  const notifyHousehold = async () => {
+    if (notifying) return;
+    setNotifying(true);
+    setError('');
+    setStatus('');
+    try {
+      await api(hh(householdId, '/family-call/notify'), { method: 'POST', body: {} });
+      setStatus(
+        'FamilyHub notification sent; WhatsApp delivery requires WhatsApp to be connected. Each person must tap Join in WhatsApp.',
+      );
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setNotifying(false);
+    }
+  };
   const parsed = whatsappCallUrlSchema.safeParse(settings.data?.whatsappCallUrl);
   const url = !settings.isError && parsed.success ? parsed.data : null;
   const ready = settings.isSuccess;
@@ -81,7 +98,8 @@ function HouseholdFamilyCallCard({ householdId, canManage }: { householdId: stri
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
           Open the family’s WhatsApp call link, then tap Join in WhatsApp. Everyone joins individually; this
-          does not automatically ring the whole family.
+          does not automatically ring or join the whole family. Use Notify household to invite everyone with
+          an account; each person must tap Join.
         </p>
         {settings.isPending && <p role="status">Loading family call…</p>}
         {settings.isError && (
@@ -93,11 +111,23 @@ function HouseholdFamilyCallCard({ householdId, canManage }: { householdId: stri
           </div>
         )}
         {url && (
-          <Button asChild size="lg">
-            <a href={url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
-              <Phone /> Join family {url.includes('/video/') ? 'video' : 'voice'} call <ExternalLink />
-            </a>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="lg">
+              <a href={url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
+                <Phone /> Join family {url.includes('/video/') ? 'video' : 'voice'} call <ExternalLink />
+              </a>
+            </Button>
+            {canManage && (
+              <Button variant="outline" size="lg" disabled={notifying} onClick={() => void notifyHousehold()}>
+                {notifying ? 'Sending invitation…' : 'Notify household'}
+              </Button>
+            )}
+          </div>
+        )}
+        {status && (
+          <p role="status" className="text-sm">
+            {status}
+          </p>
         )}
         {ready && !settings.data.whatsappCallUrl && (
           <p className="text-sm">
@@ -177,11 +207,6 @@ function HouseholdFamilyCallCard({ householdId, canManage }: { householdId: stri
         {error && (
           <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
             {error}
-          </p>
-        )}
-        {status && (
-          <p role="status" className="text-sm">
-            {status}
           </p>
         )}
         <a

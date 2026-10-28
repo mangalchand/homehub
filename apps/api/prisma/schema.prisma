@@ -312,9 +312,9 @@ model Invitation {
   revokedAt   DateTime?  @map("revoked_at")
   createdAt   DateTime   @default(now()) @map("created_at")
 
-  household Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  member    HouseholdMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  invitedBy User             @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  household   Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  member      HouseholdMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  invitedBy   User             @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
   joinRequest JoinRequest?
 
   @@index([householdId])
@@ -999,21 +999,25 @@ model ListItem {
 // ─────────────────────── Bulletin, reminders, notifications ───────────────────────
 
 model Announcement {
-  id          String               @id @default(uuid()) @db.Uuid
-  householdId String               @map("household_id") @db.Uuid
-  title       String
-  body        String?
-  priority    AnnouncementPriority @default(NORMAL)
-  color       String?
-  pinned      Boolean              @default(false)
-  expiresAt   DateTime?            @map("expires_at")
-  authorId    String?              @map("author_id") @db.Uuid
-  createdAt   DateTime             @default(now()) @map("created_at")
-  updatedAt   DateTime             @updatedAt @map("updated_at")
+  id                    String               @id @default(uuid()) @db.Uuid
+  householdId           String               @map("household_id") @db.Uuid
+  title                 String
+  body                  String?
+  priority              AnnouncementPriority @default(NORMAL)
+  color                 String?
+  pinned                Boolean              @default(false)
+  expiresAt             DateTime?            @map("expires_at")
+  repeatDaily           Boolean              @default(false) @map("repeat_daily")
+  dailyTime             String?              @map("daily_time")
+  lastNotifiedLocalDate DateTime?            @map("last_notified_local_date") @db.Date
+  authorId              String?              @map("author_id") @db.Uuid
+  createdAt             DateTime             @default(now()) @map("created_at")
+  updatedAt             DateTime             @updatedAt @map("updated_at")
 
   household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
 
   @@index([householdId])
+  @@index([repeatDaily, dailyTime])
   @@map("announcements")
 }
 
@@ -1054,8 +1058,8 @@ model Notification {
   readAt      DateTime?           @map("read_at")
   createdAt   DateTime            @default(now()) @map("created_at")
 
-  household Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  member    HouseholdMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  household   Household                @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  member      HouseholdMember?         @relation(fields: [memberId], references: [id], onDelete: Cascade)
   deviceReads DeviceNotificationRead[]
 
   @@index([memberId, readAt])
@@ -1065,21 +1069,21 @@ model Notification {
 
 /// Browser (Web Push) or native (FCM) push endpoint for one member on one device.
 model PushSubscription {
-  id          String   @id @default(uuid()) @db.Uuid
-  householdId String   @map("household_id") @db.Uuid
-  memberId    String?  @map("member_id") @db.Uuid
+  id          String    @id @default(uuid()) @db.Uuid
+  householdId String    @map("household_id") @db.Uuid
+  memberId    String?   @map("member_id") @db.Uuid
   /// Set for a paired home display's Android app (FCM) instead of a member.
-  deviceId    String?  @map("device_id") @db.Uuid
-  kind        String   @default("WEB")
-  endpoint    String   @unique
-  keys        Json     @default("{}")
-  userAgent   String?  @map("user_agent")
-  createdAt   DateTime @default(now()) @map("created_at")
+  deviceId    String?   @map("device_id") @db.Uuid
+  kind        String    @default("WEB")
+  endpoint    String    @unique
+  keys        Json      @default("{}")
+  userAgent   String?   @map("user_agent")
+  createdAt   DateTime  @default(now()) @map("created_at")
   lastUsedAt  DateTime? @map("last_used_at")
 
-  household Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  household Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
   member    HouseholdMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  device    Device? @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  device    Device?          @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([memberId])
   @@index([deviceId])
@@ -1087,10 +1091,10 @@ model PushSubscription {
 }
 
 model DeviceNotificationRead {
-  deviceId       String @map("device_id") @db.Uuid
-  notificationId String @map("notification_id") @db.Uuid
-  readAt         DateTime @default(now()) @map("read_at")
-  device         Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId       String       @map("device_id") @db.Uuid
+  notificationId String       @map("notification_id") @db.Uuid
+  readAt         DateTime     @default(now()) @map("read_at")
+  device         Device       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
   @@id([deviceId, notificationId])
