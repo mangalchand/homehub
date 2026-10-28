@@ -21,6 +21,7 @@ import { route, type Mount } from '../lib/route.js';
 import { assertCap, ctx, householdContext, requireCap } from '../auth/context.js';
 import { expandOccurrences, stripRrulePrefix } from '../calendar/recurrence.js';
 import { notify } from '../lib/notify.js';
+import { attachmentParent, cleanupAttachmentObjects } from '../lib/attachments.js';
 
 const taskInclude = {
   assignments: { orderBy: { position: 'asc' } },
@@ -221,7 +222,14 @@ export function tasksRouter() {
   route(m, { method: 'delete', path: '/tasks/:taskId', summary: 'Delete a task', tags: ['Tasks'], middleware: [requireCap('tasks.manage')] }, async (req) => {
     const c = ctx(req);
     const t = await loadTask(c.householdId, req.params.taskId!);
-    await prisma.task.update({ where: { id: t.id }, data: { deletedAt: new Date() } });
+    const images = await prisma.$transaction(async (db) => {
+      await attachmentParent(db, c, { taskId: t.id }, true);
+      const rows = await db.attachment.findMany({ where: { householdId: c.householdId, taskId: t.id } });
+      await db.task.update({ where: { id: t.id }, data: { deletedAt: new Date() } });
+      await db.attachment.deleteMany({ where: { householdId: c.householdId, taskId: t.id } });
+      return rows;
+    });
+    await cleanupAttachmentObjects(images);
     await audit(req, { householdId: c.householdId, action: 'task.deleted', entityType: 'task', entityId: t.id });
     realtime.publish(c.householdId, { type: 'tasks.changed', entityId: t.id });
     return undefined;

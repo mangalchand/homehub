@@ -1,47 +1,52 @@
 import { useState } from 'react';
-import { CheckSquare, Plus, Trash2 } from 'lucide-react';
+import { CheckSquare, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { api, hh } from '@/lib/api';
-import { useHhMutation, useMembers, usePoints, useRole, useTasks, type Task } from '@/lib/queries';
+import { useHhMutation, useHid, useMembers, usePoints, useRole, useTasks, type Task } from '@/lib/queries';
 import { MemberChoreColumn } from '@/features/chores';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
-import { Field, Input, Select } from '@/components/ui/input';
+import { Field, Input, Select, Textarea } from '@/components/ui/input';
+import { RecordImages } from '@/components/RecordImages';
 import { Avatar, Badge, EmptyState, PageHeader, Switch } from '@/components/ui/misc';
 import { cn } from '@/lib/utils';
 
 const REPEAT: Record<string, string> = { '': 'Does not repeat', 'FREQ=DAILY': 'Every day', 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR': 'Weekdays', 'FREQ=WEEKLY;BYDAY=SA,SU': 'Weekends', 'FREQ=WEEKLY': 'Every week (same day)' };
 
-function TaskDialog({ open, onOpenChange, kind }: { open: boolean; onOpenChange: (o: boolean) => void; kind: 'TASK' | 'CHORE' }) {
+function TaskDialog({ open, onOpenChange, kind, task }: { open: boolean; onOpenChange: (o: boolean) => void; kind: 'TASK' | 'CHORE'; task?: Task }) {
   const members = useMembers().data ?? [];
-  const [f, setF] = useState({ title: '', points: 10, rrule: 'FREQ=DAILY', memberIds: [] as string[], requiresApproval: false, rotate: false, dueAt: '', priority: 'MEDIUM' });
-  const create = useHhMutation<void>(
+  const { isAdult } = useRole();
+  const [saved, setSaved] = useState<Task | null>(task ?? null);
+  const localDue = task?.dueAt ? format(new Date(task.dueAt), "yyyy-MM-dd'T'HH:mm") : '';
+  const [f, setF] = useState({ title: task?.title ?? '', description: task?.description ?? '', points: task?.points ?? 10, rrule: task ? task.rrule ?? '' : 'FREQ=DAILY', memberIds: task?.memberIds ?? [] as string[], requiresApproval: task?.requiresApproval ?? false, rotate: task?.rotate ?? false, dueAt: localDue, priority: task?.priority ?? 'MEDIUM' });
+  const create = useHhMutation<void, Task>(
     (hid) =>
-      api(hh(hid, '/tasks'), {
-        method: 'POST',
+      api<Task>(hh(hid, saved ? `/tasks/${saved.id}` : '/tasks'), {
+        method: saved ? 'PATCH' : 'POST',
         body: {
-          kind, title: f.title, memberIds: f.memberIds, priority: f.priority,
-          points: kind === 'CHORE' ? f.points : 0,
-          rrule: kind === 'CHORE' ? f.rrule || null : null,
-          requiresApproval: kind === 'CHORE' && f.requiresApproval,
-          rotate: kind === 'CHORE' && f.rotate,
-          dueAt: f.dueAt ? new Date(f.dueAt).toISOString() : kind === 'CHORE' ? new Date().toISOString() : null,
+          kind, title: f.title, description: f.description, memberIds: f.memberIds, priority: f.priority,
+          points: kind === 'CHORE' ? f.points : saved?.points ?? 0,
+          rrule: kind === 'CHORE' ? f.rrule || null : saved?.rrule ?? null,
+          requiresApproval: kind === 'CHORE' ? f.requiresApproval : saved?.requiresApproval ?? false,
+          rotate: kind === 'CHORE' ? f.rotate : saved?.rotate ?? false,
+          dueAt: kind === 'CHORE' ? saved ? saved.dueAt : new Date().toISOString() : task && f.dueAt === localDue ? task.dueAt : f.dueAt ? new Date(f.dueAt).toISOString() : null,
         },
       }),
     [['tasks']],
   );
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={kind === 'CHORE' ? 'New chore' : 'New task'}>
+    <Dialog open={open} onOpenChange={onOpenChange} title={`${saved ? 'Edit' : 'New'} ${kind === 'CHORE' ? 'chore' : 'task'}`} description="Save first, then attach up to five images.">
       <form
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          create.mutate(undefined, { onSuccess: () => { toast.success('Saved'); onOpenChange(false); setF((x) => ({ ...x, title: '' })); }, onError: (er) => toast.error((er as Error).message) });
+          create.mutate(undefined, { onSuccess: (value) => { toast.success('Saved — you can now attach images'); setSaved(value); }, onError: (er) => toast.error((er as Error).message) });
         }}
       >
         <Field label="Title"><Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} required autoFocus /></Field>
+        <Field label="Description"><Textarea value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} maxLength={10000} /></Field>
         <Field label="Assign to">
           <div className="flex flex-wrap gap-2">
             {members.map((m) => {
@@ -66,16 +71,18 @@ function TaskDialog({ open, onOpenChange, kind }: { open: boolean; onOpenChange:
         ) : (
           <div className="grid grid-cols-2 gap-3">
             <Field label="Due"><Input type="datetime-local" value={f.dueAt} onChange={(e) => setF({ ...f, dueAt: e.target.value })} /></Field>
-            <Field label="Priority"><Select value={f.priority} onChange={(e) => setF({ ...f, priority: e.target.value })}>{['LOW', 'MEDIUM', 'HIGH', 'URGENT'].map((p) => <option key={p}>{p}</option>)}</Select></Field>
+            <Field label="Priority"><Select value={f.priority} onChange={(e) => setF({ ...f, priority: e.target.value as Task['priority'] })}>{['LOW', 'MEDIUM', 'HIGH', 'URGENT'].map((p) => <option key={p}>{p}</option>)}</Select></Field>
           </div>
         )}
-        <Button type="submit" className="w-full" disabled={create.isPending}>Save</Button>
+        <Button type="submit" className="w-full" disabled={create.isPending || Boolean(saved && !isAdult)}>Save</Button>
       </form>
+      {saved ? <RecordImages parentType="tasks" parentId={saved.id} /> : <p className="mt-3 text-sm text-muted-foreground">Image controls appear after saving.</p>}
+      <Button type="button" className="mt-4 w-full" variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
     </Dialog>
   );
 }
 
-function TaskRow({ t, canManage }: { t: Task; canManage: boolean }) {
+function TaskRow({ t, canManage, onEdit }: { t: Task; canManage: boolean; onEdit: () => void }) {
   const members = useMembers().data ?? [];
   const toggle = useHhMutation<void>((hid) => api(hh(hid, `/tasks/${t.id}`), { method: 'PATCH', body: { status: t.status === 'DONE' ? 'OPEN' : 'DONE' } }), [['tasks']]);
   const del = useHhMutation<void>((hid) => api(hh(hid, `/tasks/${t.id}`), { method: 'DELETE' }), [['tasks']]);
@@ -90,41 +97,50 @@ function TaskRow({ t, canManage }: { t: Task; canManage: boolean }) {
           {t.priority === 'HIGH' || t.priority === 'URGENT' ? <Badge tone="warning">{t.priority[0] + t.priority.slice(1).toLowerCase()}</Badge> : null}
           <span className="flex -space-x-1.5">{t.memberIds.map((id) => { const m = members.find((x) => x.id === id); return m ? <Avatar key={id} name={m.displayName} color={m.color} size={22} /> : null; })}</span>
         </div>
+        <RecordImages parentType="tasks" parentId={t.id} />
       </div>
+      {canManage && <Button variant="ghost" size="icon" className="shrink-0" aria-label={`Edit ${t.title}`} onClick={onEdit}><Pencil /></Button>}
       {canManage && <Button variant="ghost" size="icon" className="-my-1.5 -mr-1.5 shrink-0 text-muted-foreground" aria-label="Delete" onClick={() => del.mutate()}><Trash2 /></Button>}
     </div>
   );
 }
 
 export default function ChoresPage() {
+  const hid = useHid();
+  return <HouseholdChores key={hid} />;
+}
+
+function HouseholdChores() {
   const members = (useMembers().data ?? []).filter((m) => m.isActive);
   const chores = useTasks('CHORE').data ?? [];
   const tasks = useTasks('TASK').data ?? [];
   const points = usePoints().data ?? [];
-  const { isAdult } = useRole();
+  const { isAdult, isDevice } = useRole();
   const [dialog, setDialog] = useState<'TASK' | 'CHORE' | null>(null);
+  const [editing, setEditing] = useState<Task | null>(null);
   const kids = members.filter((m) => chores.some((c) => c.memberIds.includes(m.id) || c.memberIds.length === 0));
   return (
     <div>
       <PageHeader
         title="Chores & tasks"
         subtitle={format(new Date(), 'EEEE, d MMMM')}
-        actions={isAdult && (<><Button variant="outline" onClick={() => setDialog('TASK')}><Plus /> Task</Button><Button onClick={() => setDialog('CHORE')}><Plus /> Chore</Button></>)}
+        actions={(isAdult || isDevice) && (<><Button variant="outline" onClick={() => setDialog('TASK')}><Plus /> Task</Button>{isAdult && <Button onClick={() => setDialog('CHORE')}><Plus /> Chore</Button>}</>)}
       />
       {kids.length === 0 ? (
         <Card><EmptyState icon={<CheckSquare />} title="No chores yet" body="Create daily or weekly chores, assign them, and attach points kids can trade for rewards." /></Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
-          {kids.map((m) => <Card key={m.id}><CardContent className="p-4"><MemberChoreColumn member={m} tasks={chores} points={points.find((p) => p.memberId === m.id)?.balance} /></CardContent></Card>)}
+          {kids.map((m) => <Card key={m.id}><CardContent className="p-4"><MemberChoreColumn member={m} tasks={chores} points={points.find((p) => p.memberId === m.id)?.balance} onEdit={isAdult ? setEditing : undefined} /></CardContent></Card>)}
         </div>
       )}
       <Card className="mt-6 sm:mt-8">
         <CardHeader><CardTitle>Household tasks</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          {tasks.length === 0 ? <p className="text-sm text-muted-foreground">Nothing on the to-do list.</p> : tasks.map((t) => <TaskRow key={t.id} t={t} canManage={isAdult} />)}
+          {tasks.length === 0 ? <p className="text-sm text-muted-foreground">Nothing on the to-do list.</p> : tasks.map((t) => <TaskRow key={t.id} t={t} canManage={isAdult} onEdit={() => setEditing(t)} />)}
         </CardContent>
       </Card>
       {dialog && <TaskDialog open onOpenChange={(o) => !o && setDialog(null)} kind={dialog} />}
+      {editing && <TaskDialog key={editing.id} open onOpenChange={(o) => !o && setEditing(null)} kind={editing.kind} task={editing} />}
     </div>
   );
 }
