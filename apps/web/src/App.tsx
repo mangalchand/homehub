@@ -12,6 +12,7 @@ import { LoginPage } from './pages/Login';
 import { OnboardingPage } from './pages/Onboarding';
 import { AcceptInvite, InviteLanding, pendingInvite } from './pages/Invite';
 import { JoinPendingPage, VerifyEmailPage } from './features/join';
+import { SafetyProvider } from './features/safety';
 
 const DashboardPage = lazy(() => import('./pages/Dashboard'));
 const CalendarPage = lazy(() => import('./pages/Calendar'));
@@ -23,6 +24,10 @@ const FamilyPage = lazy(() => import('./pages/Family'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const HomesPage = lazy(() => import('./pages/Homes'));
 const HomeManagementPage = lazy(() => import('./pages/HomeManagement'));
+const NotesPage = lazy(() => import('./pages/Notes'));
+const AnnouncementsPage = lazy(() => import('./pages/Announcements'));
+const SafetyPage = lazy(() => import('./pages/Safety').then((m) => ({ default: m.Safety })));
+const EveningSummaryPage = lazy(() => import('./features/eveningSummary'));
 
 function useTheme() {
   const theme = useUi((s) => s.theme);
@@ -91,24 +96,30 @@ export function App() {
   if (!householdId) return <Loading />;
 
   return (
-    <AppShell>
-      <Suspense fallback={<Loading />}>
-        <Routes key={householdId}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/chores" element={<ChoresPage />} />
-          <Route path="/lists" element={<ListsPage />} />
-          <Route path="/lists/:listId" element={<ListsPage />} />
-          <Route path="/rewards" element={<RewardsPage />} />
-          <Route path="/photos" element={<PhotosPage />} />
-          <Route path="/family" element={<FamilyPage />} />
-          <Route path="/homes" element={me.data.kind === 'user' ? <HomesPage /> : <Navigate to="/" replace />} />
-          <Route path="/home-management" element={<HomeManagementPage />} />
-          <Route path="/settings/*" element={<SettingsPage />} />
-          <Route path="/login" element={<Navigate to={me.data.kind === 'user' ? '/homes' : '/'} replace />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
-    </AppShell>
+    <SafetyProvider>
+      <AppShell>
+        <Suspense fallback={<Loading />}>
+          <Routes key={householdId}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/chores" element={<ChoresPage />} />
+            <Route path="/lists" element={<ListsPage />} />
+            <Route path="/lists/:listId" element={<ListsPage />} />
+            <Route path="/rewards" element={<RewardsPage />} />
+            <Route path="/photos" element={<PhotosPage />} />
+            <Route path="/family" element={<FamilyPage />} />
+            <Route path="/homes" element={me.data.kind === 'user' ? <HomesPage /> : <Navigate to="/" replace />} />
+            <Route path="/home-management" element={<HomeManagementPage />} />
+            <Route path="/safety" element={<SafetyPage />} />
+            <Route path="/notes" element={<NotesPage />} />
+            <Route path="/announcements" element={<AnnouncementsPage />} />
+            <Route path="/summaries" element={<EveningSummaryPage />} />
+            <Route path="/settings/*" element={<SettingsPage />} />
+            <Route path="/login" element={<Navigate to={me.data.kind === 'user' ? '/homes' : '/'} replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </AppShell>
+    </SafetyProvider>
   );
 }

@@ -1,5 +1,5 @@
 import type { ApiError } from '@familyhub/shared';
-import { enqueueMutation } from './offline';
+import { enqueueMutation, requiresOnlineAcknowledgement } from './offline';
 
 export class ApiRequestError extends Error {
   constructor(
@@ -32,6 +32,9 @@ export interface RequestOptions {
 
 export async function api<T = unknown>(path: string, opts: RequestOptions = {}, retried = false): Promise<T> {
   const method = opts.method ?? 'GET';
+  if (method !== 'GET' && opts.offlineQueue && (opts.formData || requiresOnlineAcknowledgement(path))) {
+    throw new ApiRequestError(400, 'ONLINE_REQUIRED', 'Safety actions and image uploads cannot be queued offline');
+  }
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (method !== 'GET') headers['x-csrf-token'] = await getCsrf();
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';

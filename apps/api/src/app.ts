@@ -19,6 +19,11 @@ import { homeRouter } from './routes/home.js';
 import { photosRouter } from './routes/photos.js';
 import { pushRouter } from './routes/push.js';
 import { joinHouseholdRouter, joinUserRouter } from './routes/join.js';
+import { safetyRouter } from './routes/safety.js';
+import { notesRouter } from './routes/notes.js';
+import { attachmentsRouter } from './routes/attachments.js';
+import { summariesRouter } from './routes/summaries.js';
+import { familyCallRouter } from './routes/familyCall.js';
 import { logger } from './logger.js';
 
 export function buildOpenApiDocument() {
@@ -76,6 +81,11 @@ export function createApp() {
   app.use(scoped, photosRouter());
   app.use(scoped, pushRouter());
   app.use(scoped, joinHouseholdRouter());
+  app.use(scoped, safetyRouter());
+  app.use(scoped, notesRouter());
+  app.use(scoped, attachmentsRouter());
+  app.use(scoped, summariesRouter());
+  app.use(scoped, familyCallRouter());
 
   const doc = buildOpenApiDocument();
   app.get('/api/openapi.json', (_req, res) => res.json(doc));

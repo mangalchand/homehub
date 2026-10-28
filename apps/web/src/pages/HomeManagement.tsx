@@ -8,13 +8,14 @@ import { useHhMutation, useHid, useHousehold, useMembers, useRole } from '@/lib/
 import { HomesCard } from './Homes';
 import { DevicesSection, DisplaySection, SecuritySection } from './Settings';
 import { NotificationsSection } from '@/features/notificationSettings';
+import { FamilyCallCard } from '@/features/familyCall';
 import { JoinRequestsCard } from '@/features/join';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, Input, Select } from '@/components/ui/input';
 import { Badge, PageHeader } from '@/components/ui/misc';
 
-const ZONES = Intl.supportedValuesOf?.('timeZone') ?? ['UTC'];
+const ZONES = ['UTC', ...(Intl.supportedValuesOf?.('timeZone') ?? []).filter((z) => z !== 'UTC')];
 
 function HomeDetails() {
   const home = useHousehold().data;
@@ -51,11 +52,15 @@ export default function HomeManagementPage() {
   const members = useMembers().data ?? [];
   return <div className="mx-auto max-w-5xl space-y-5">
     <PageHeader title="Home Management" subtitle="Homes, people, displays and household controls in one place." />
-    <nav aria-label="Home management sections" className="flex flex-wrap gap-2">{['homes', 'members', 'devices', 'display', 'notifications', 'automation'].map((s) => <a key={s} href={`#${s}`} className="rounded-full border bg-card px-4 py-2 text-sm font-medium capitalize hover:bg-muted">{s}</a>)}</nav>
+    <nav aria-label="Home management sections" className="flex flex-wrap gap-2">{['homes', 'members', 'devices', 'display', 'notifications', 'communication', 'automation'].map((s) => <a key={s} href={`#${s}`} className="rounded-full border bg-card px-4 py-2 text-sm font-medium capitalize hover:bg-muted">{s}</a>)}</nav>
     <section id="homes" className="scroll-mt-24 space-y-5">{!isDevice && <HomesCard />}{home.data && <HomeDetails key={hid} />}{home.isError && <p role="alert" className="text-destructive">Couldn’t load this home. Refresh homes to check your access.</p>}</section>
     <section id="members" className="scroll-mt-24 space-y-5"><Card><CardHeader><CardTitle><Users className="h-5 w-5" /> Family & access</CardTitle><Badge>{members.filter((m) => m.isActive).length} active</Badge></CardHeader><CardContent className="space-y-3"><p className="text-sm leading-relaxed text-muted-foreground">{isDevice ? 'Unlock with the PIN to invite or remove adult, child and guest members. Owners and parent admins are protected on shared displays.' : isAdmin ? 'Add profiles, invite existing accounts or remove access without deleting household history.' : 'You can view the family. Ask the owner or a parent admin to invite or remove members.'}</p><Button asChild variant="outline"><Link to="/family">{isAdmin ? 'Manage members & invitations' : 'View family'}</Link></Button></CardContent></Card>{(isAdmin || isDevice) && <JoinRequestsCard isDevice={isDevice} />}{isAdmin && <PendingInvitations />}</section>
     <section id="devices" className="scroll-mt-24"><DevicesSection allHomes /></section>
     <div className="grid items-start gap-5 lg:grid-cols-2"><section id="display" className="scroll-mt-24"><DisplaySection /></section><section id="notifications" className="scroll-mt-24"><NotificationsSection /></section></div>
+    <section id="communication" className="scroll-mt-24 space-y-5">
+      <FamilyCallCard />
+      <Card><CardHeader><CardTitle>Evening task & points summary</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">By default, a summary arrives at 8:30 PM in this home’s time zone. Preview pending tasks and points, review delivery history, or change the schedule.</p><Button variant="outline" asChild><Link to="/summaries">Summary & schedule</Link></Button><Button variant="outline" asChild><Link to="/announcements">Family announcements</Link></Button></CardContent></Card>
+    </section>
     {role === 'OWNER' && !isDevice && <SecuritySection />}
     <section id="automation" className="scroll-mt-24"><Card><CardHeader><CardTitle><Radio className="h-5 w-5" /> Home automation</CardTitle><Badge tone="muted">Not connected</Badge></CardHeader><CardContent className="space-y-3"><p className="font-semibold">Connect a smart-home platform before controlling accessories.</p><p className="text-sm leading-relaxed text-muted-foreground">No lights, plugs, locks, cameras, sensors or thermostats are connected to FamilyHub yet. This page lists FamilyHub displays, not discovered smart-home accessories.</p><p className="text-sm leading-relaxed text-muted-foreground">A useful next integration is Home Assistant: it can bring compatible devices into one place and support routines such as Morning, Away and Bedtime. Setup needs your chosen platform and device list. No remote accessory commands are enabled here.</p></CardContent></Card></section>
   </div>;

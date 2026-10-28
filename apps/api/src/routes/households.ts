@@ -1,3 +1,4 @@
+import { cleanupAttachmentObjects } from '../lib/attachments.js';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -97,7 +98,13 @@ export function householdRouter() {
       const c = ctx(req);
       if (body.confirmName !== c.household.name) throw badRequest('Type the household name exactly to confirm deletion');
       await audit(req, { householdId: null, action: 'household.deleted', entityType: 'household', entityId: c.householdId, metadata: { name: c.household.name } });
-      await prisma.household.delete({ where: { id: c.householdId } });
+      const attachments = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM households WHERE id = ${c.householdId}::uuid FOR UPDATE`;
+        const rows = await tx.attachment.findMany({ where: { householdId: c.householdId }, select: { id: true, storageKey: true } });
+        await tx.household.delete({ where: { id: c.householdId } });
+        return rows;
+      });
+      await cleanupAttachmentObjects(attachments);
       return undefined;
     },
   );

@@ -4,6 +4,8 @@ import { logger } from '../logger.js';
 import { notify } from '../lib/notify.js';
 import { expandOccurrences } from '../calendar/recurrence.js';
 import { retryPendingPushes, runDueSyncs } from '../calendar/sync.js';
+import { runEveningSummaries } from './eveningSummary.js';
+import { cleanupExpiredEmergencySessions } from '../routes/safety.js';
 
 /** Create in-app reminder notifications for events starting soon. Dedupe keys make this idempotent. */
 export async function generateEventReminders(now = new Date(), horizonMinutes = 24 * 60) {
@@ -63,6 +65,10 @@ export function startScheduler() {
   every(30_000, 'calendar-sync', () => runDueSyncs());
   every(60_000, 'event-push-retry', () => retryPendingPushes());
   every(60_000, 'event-reminders', () => generateEventReminders());
+  every(60_000, 'evening-summary', () => runEveningSummaries());
+  void safely('evening-summary-catchup', () => runEveningSummaries());
+  every(60_000, 'safety-expiry', () => cleanupExpiredEmergencySessions());
+  void safely('safety-expiry-startup', () => cleanupExpiredEmergencySessions());
   every(3_600_000, 'cleanup', async () => {
     const now = new Date();
     await prisma.oAuthState.deleteMany({ where: { expiresAt: { lt: now } } });

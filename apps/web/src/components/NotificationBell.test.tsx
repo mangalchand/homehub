@@ -8,6 +8,7 @@ vi.mock('@/lib/notifications', () => ({
   useNotifications: () => ({ data: state.data, isSuccess: true }), useMarkRead: () => ({ mutate: vi.fn() }), chime, unlockNotificationAudio: vi.fn(),
 }));
 vi.mock('sonner', () => ({ toast }));
+vi.mock('@/features/spokenAlerts', () => ({ NotificationsReadAloudButton: () => <button>Read notifications aloud</button> }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('tablet notification chime', () => {
