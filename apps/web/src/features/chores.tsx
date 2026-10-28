@@ -1,10 +1,12 @@
-import { Check, Clock, Sparkles } from 'lucide-react';
+import { Check, Clock, Pencil, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MemberDTO } from '@familyhub/shared';
 import { api, hh } from '@/lib/api';
 import { useHhMutation, type Task } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/misc';
+import { RecordImages } from '@/components/RecordImages';
+import { Button } from '@/components/ui/button';
 
 export function useCompleteChore() {
   return useHhMutation<{ taskId: string; memberId: string; title: string }, { needsApproval: boolean; pointsAwarded: number; queued?: boolean }>(
@@ -17,7 +19,7 @@ export function useUndoCompletion() {
 }
 
 /** Large, touch-friendly chore tile used on the dashboard and the chores page. */
-export function ChoreTile({ task, member, compact }: { task: Task; member: MemberDTO; compact?: boolean }) {
+export function ChoreTile({ task, member, compact, onEdit }: { task: Task; member: MemberDTO; compact?: boolean; onEdit?: (task: Task) => void }) {
   const complete = useCompleteChore();
   const undo = useUndoCompletion();
   const mine = task.completions.find((c) => c.memberId === member.id);
@@ -41,6 +43,7 @@ export function ChoreTile({ task, member, compact }: { task: Task; member: Membe
     );
   };
   return (
+    <div className="min-w-0">
     <button
       onClick={onClick}
       disabled={complete.isPending || undo.isPending}
@@ -68,10 +71,13 @@ export function ChoreTile({ task, member, compact }: { task: Task; member: Membe
         </span>
       )}
     </button>
+    {!compact && <RecordImages parentType="tasks" parentId={task.id} />}
+    {onEdit && <Button type="button" variant="ghost" size="sm" onClick={() => onEdit(task)} aria-label={`Edit ${task.title}`}><Pencil /> Edit chore & images</Button>}
+    </div>
   );
 }
 
-export function MemberChoreColumn({ member, tasks, points, compact }: { member: MemberDTO; tasks: Task[]; points?: number; compact?: boolean }) {
+export function MemberChoreColumn({ member, tasks, points, compact, onEdit }: { member: MemberDTO; tasks: Task[]; points?: number; compact?: boolean; onEdit?: (task: Task) => void }) {
   const mine = tasks.filter((t) => t.dueOnDate && (t.currentAssigneeIds.length ? t.currentAssigneeIds.includes(member.id) : true));
   const doneCount = mine.filter((t) => t.completions.some((c) => c.memberId === member.id)).length;
   return (
@@ -88,7 +94,7 @@ export function MemberChoreColumn({ member, tasks, points, compact }: { member: 
       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div className="h-full rounded-full transition-all" style={{ width: `${mine.length ? (doneCount / mine.length) * 100 : 0}%`, background: member.color }} />
       </div>
-      {mine.length === 0 ? <p className="py-2 text-sm text-muted-foreground">No chores today 🎈</p> : mine.map((t) => <ChoreTile key={t.id} task={t} member={member} compact={compact} />)}
+      {mine.length === 0 ? <p className="py-2 text-sm text-muted-foreground">No chores today 🎈</p> : mine.map((t) => <ChoreTile key={t.id} task={t} member={member} compact={compact} onEdit={onEdit} />)}
     </div>
   );
 }
