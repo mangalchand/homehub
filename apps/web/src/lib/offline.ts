@@ -14,6 +14,8 @@ const store = createStore('familyhub-offline', 'mutations');
 const KEY = 'queue';
 const listeners = new Set<(n: number) => void>();
 
+export const requiresOnlineAcknowledgement = (path: string) => /\/(safety|attachments)(?:\/|$|\?)/.test(path);
+
 async function read(): Promise<QueuedMutation[]> {
   return ((await get(KEY, store)) as QueuedMutation[] | undefined) ?? [];
 }
@@ -23,6 +25,7 @@ async function write(q: QueuedMutation[]) {
 }
 
 export async function enqueueMutation(m: { path: string; method: string; body?: unknown }) {
+  if (requiresOnlineAcknowledgement(m.path)) throw new Error('Safety actions and image uploads require an online acknowledgement');
   const q = await read();
   q.push({ ...m, id: crypto.randomUUID(), queuedAt: Date.now(), attempts: 0 });
   await write(q);
@@ -48,8 +51,11 @@ export async function flushQueue(onResult?: (m: QueuedMutation, status: number) 
     while (q.length) {
       const m = q[0]!;
       try {
-        await api(m.path, { method: m.method as 'POST', body: m.body });
-        onResult?.(m, 200);
+        if (requiresOnlineAcknowledgement(m.path)) onResult?.(m, 400);
+        else {
+          await api(m.path, { method: m.method as 'POST', body: m.body });
+          onResult?.(m, 200);
+        }
       } catch (err) {
         if (err instanceof ApiRequestError && err.status === 0) break;
         onResult?.(m, err instanceof ApiRequestError ? err.status : 500);

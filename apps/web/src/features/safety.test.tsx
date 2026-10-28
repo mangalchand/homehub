@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({ hid: 'home-a', api: vi.fn(), watch: vi.fn() })
 vi.mock('@/lib/api', async (importOriginal) => ({ ...await importOriginal<typeof import('@/lib/api')>(), api: mocks.api }));
 vi.mock('@/lib/queries', () => ({ useHid: () => mocks.hid }));
 vi.mock('@/lib/safetyLocation', () => ({ watchSafetyLocation: mocks.watch }));
+vi.mock('@/features/familyCall', () => ({ FamilyCallCard: () => null }));
 
 class Stream {
   static instances: Stream[] = [];

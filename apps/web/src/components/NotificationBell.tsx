@@ -1,3 +1,4 @@
+import { NotificationsReadAloudButton } from '@/features/spokenAlerts';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, BellRing, CalendarDays, CheckCheck, Gift, Images, Megaphone, ShoppingBasket, Sparkles } from 'lucide-react';
@@ -74,7 +75,8 @@ export function NotificationBell({ className }: { className?: string }) {
             <p className="font-display font-bold">Notifications</p>
             {unread > 0 && <button className="flex items-center gap-1 text-xs font-semibold text-primary" onClick={() => markRead.mutate(undefined)}><CheckCheck className="h-4 w-4" /> Mark all read</button>}
           </div>
-          <div className="max-h-[60vh] overflow-y-auto p-2">
+          <div className="border-b p-3"><NotificationsReadAloudButton /></div>
+          <div className="max-h-[50vh] overflow-y-auto p-2">
             {notifications.length === 0 ? (
               <p className="px-3 py-10 text-center text-sm text-muted-foreground">You’re all caught up.</p>
             ) : (

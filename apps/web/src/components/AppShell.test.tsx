@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Me } from '@/lib/queries';
@@ -14,6 +14,8 @@ vi.mock('@/lib/realtime', () => ({ useOnline: () => true, useRealtime: () => tru
 vi.mock('@/features/photos', () => ({ Screensaver: () => null }));
 vi.mock('@/features/join', () => ({ DeviceJoinPrompt: () => null }));
 vi.mock('@/features/voice', () => ({ VoiceButton: () => null }));
+vi.mock('@/features/safety', () => ({ SafetyEntry: () => <button>Panic / SOS</button> }));
+vi.mock('@/features/spokenAlerts', () => ({ SpokenAlertsControl: () => null }));
 vi.mock('./NotificationBell', () => ({ NotificationBell: () => null }));
 vi.mock('react-router-dom', async (importOriginal) => ({ ...await importOriginal<typeof import('react-router-dom')>(), useNavigate: () => navigate }));
 beforeEach(() => {
@@ -37,5 +39,13 @@ describe('phone household navigation', () => {
     state.me!.kind = 'device';
     render(<MemoryRouter><AppShell>Content</AppShell></MemoryRouter>);
     expect(screen.queryByRole('combobox', { name: 'Choose home' })).not.toBeInTheDocument();
+  });
+  it('exposes Safety, Notes, Announcements and Evening summary from the mobile More menu', () => {
+    render(<MemoryRouter><AppShell>Content</AppShell></MemoryRouter>);
+    expect(screen.getByRole('button', { name: 'Panic / SOS' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /More/ }));
+    for (const label of ['Safety', 'Notes', 'Announcements', 'Evening summary']) {
+      expect(within(screen.getByRole('dialog')).getByRole('link', { name: new RegExp(label) })).toBeInTheDocument();
+    }
   });
 });

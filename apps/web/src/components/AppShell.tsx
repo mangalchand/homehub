@@ -1,10 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { CalendarDays, Gift, Home, Images, LayoutGrid, Lock, Maximize, Menu, Moon, Settings, ShoppingBasket, Sparkles, Sun, Unlock, Users, WifiOff } from 'lucide-react';
+import { CalendarDays, Gift, Home, Images, LayoutGrid, Lock, Maximize, Menu, Moon, Settings, ShoppingBasket, Sparkles, Sun, Unlock, Users, WifiOff, ShieldAlert, NotebookPen, Megaphone, ClipboardList } from 'lucide-react';
 import { Screensaver } from '@/features/photos';
 import { NotificationBell } from './NotificationBell';
 import { DeviceJoinPrompt } from '@/features/join';
 import { VoiceButton } from '@/features/voice';
+import { SafetyEntry } from '@/features/safety';
+import { SpokenAlertsControl } from '@/features/spokenAlerts';
 import { registerNativePush } from '@/lib/nativePush';
 import { Avatar } from './ui/misc';
 import { toast } from 'sonner';
@@ -27,11 +29,15 @@ const NAV = [
   { to: '/photos', label: 'Photos', icon: Images },
   { to: '/rewards', label: 'Rewards', icon: Gift },
   { to: '/family', label: 'Family', icon: Users },
+  { to: '/safety', label: 'Safety', icon: ShieldAlert },
+  { to: '/notes', label: 'Notes', icon: NotebookPen },
+  { to: '/announcements', label: 'Announcements', icon: Megaphone },
+  { to: '/summaries', label: 'Evening summary', icon: ClipboardList },
   { to: '/home-management', label: 'Home Management', icon: Home },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 const MOBILE_NAV = ['/', '/calendar', '/chores', '/lists', '/photos'];
-const MORE_HINT: Record<string, string> = { '/rewards': 'Points & prizes', '/family': 'Members & invites', '/home-management': 'Homes, displays & automation', '/settings': 'Account & app' };
+const MORE_HINT: Record<string, string> = { '/rewards': 'Points & prizes', '/family': 'Members & invites', '/safety': 'SOS & shared location', '/notes': 'Household notes & images', '/announcements': 'Family messages & voice', '/summaries': 'Pending tasks & points', '/home-management': 'Homes, displays & automation', '/settings': 'Account & app' };
 
 function useNightMode() {
   const { displayMode, autoNight, nightStart, nightEnd } = useUi();
@@ -142,7 +148,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           )}
         </div>
-        <nav className="flex flex-1 flex-col gap-1" aria-label="Main">
+        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto" aria-label="Main">
           {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
@@ -211,7 +217,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <NotificationBell />
         </header>
-        <main className={cn('mx-auto w-full max-w-[1600px] flex-1 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 md:p-6 md:pb-6 md:pr-24', kiosk && 'md:p-5')}>{children}</main>
+        <main className={cn('mx-auto w-full max-w-[1600px] flex-1 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 md:p-6 md:pb-6 md:pr-24', kiosk && 'md:p-5')}>
+          <div className="mb-5 flex flex-wrap items-start gap-3 md:pr-16"><SafetyEntry /><SpokenAlertsControl /></div>
+          {children}
+        </main>
         <span className="sr-only" aria-live="polite">
           {live ? 'Live updates connected' : 'Live updates reconnecting'}
         </span>

@@ -1,3 +1,4 @@
+import { PointsReadAloudButton } from '@/features/spokenAlerts';
 import { useState } from 'react';
 import { Check, Gift, Plus, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -39,7 +40,8 @@ export default function RewardsPage() {
             <Card key={m.id}><CardContent className="flex items-center gap-3 p-4">
               <Avatar name={m.displayName} color={m.color} size={44} />
               <div><p className="font-semibold">{m.displayName}</p><p className="flex items-center gap-1 text-2xl font-bold"><Sparkles className="h-5 w-5 text-amber-500" />{p?.available ?? 0}</p>
-                {!!p && p.balance !== p.available && <p className="text-xs text-muted-foreground">{p.balance - p.available} reserved for requests</p>}</div>
+                {!!p && p.balance !== p.available && <p className="text-xs text-muted-foreground">{p.balance - p.available} reserved for requests</p>}
+                <PointsReadAloudButton memberId={m.id} /></div>
             </CardContent></Card>
           );
         })}

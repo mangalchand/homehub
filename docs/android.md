@@ -4,6 +4,16 @@ The Android app (`apps/android`, Capacitor) is a full-screen shell around the ho
 
 Production URL baked into the APK: `https://44-198-103-49.sslip.io` (override with `FAMILYHUB_URL` at build time).
 
+## Family safety and communication (1.2)
+
+Install the updated APK over the previous debug build to add the native Geolocation plugin. The hosted API/web deployment must also contain the family-feature migration and routes; installing this shell alone does not deploy them. Location, microphone, notification and text-to-speech behavior still needs verification on the actual Android device.
+
+- **Panic / SOS** is available throughout the signed-in app, including a shortcut from the idle photo frame. Confirm activation; optionally consent to share the latest location while the app is open and visible. Denying GPS still creates an alert. Stop it in **More → Safety**; alerts expire after 30 minutes. No background tracking, location history or guaranteed emergency dispatch/delivery.
+- **More → Notes** supports household notes with images. Saved tasks and notes accept up to five JPEG, PNG or WebP images, each up to 10 MB. Uploads require connectivity and confirmation from the server.
+- **More → Evening summary** previews pending tasks and points, shows saved delivery history and lets an owner/admin or PIN-unlocked display change the default **20:30 household-time-zone** schedule. Delivery uses the in-app feed and configured best-effort push, not email, SMS or WhatsApp messaging.
+- **Home Management → Communication** or **Safety** lets an owner/admin or PIN-unlocked display paste a WhatsApp Calls link. Each person taps **Join family call**; FamilyHub cannot automatically ring everyone. Anyone with the link may join; clearing the shortcut does not revoke the WhatsApp link.
+- **More → Announcements** supports typed announcements and microphone composition on paired home displays. Unlock the household PIN before posting from a display. Commands include “announce dinner is ready”, “read announcements”, “read notifications”, “read my points” and “read pending tasks”. Rewards and the notification bell also have read-aloud buttons. Automatic spoken household alerts are opt-in per display and never include personal inboxes. Speech recognition is tap-to-start, not continuous listening.
+
 ## Install on an Android phone or tablet
 
 1. Copy `FamilyHubPro.apk` to the device (Google Drive, email, USB cable, or open the download link on the device).

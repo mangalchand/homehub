@@ -1,7 +1,7 @@
 import { useNotifications } from '@/lib/notifications';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { format, formatDistanceToNowStrict } from 'date-fns';
-import { ImagePlus } from 'lucide-react';
+import { ImagePlus, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useHousehold, usePhotos, type Photo } from '@/lib/queries';
 import { zoned } from '@/lib/time';
@@ -108,6 +108,9 @@ export function Screensaver({ idleMinutes = 5, enabled }: { idleMinutes?: number
     <div className="fixed inset-0 z-[100] bg-black" role="dialog" aria-label="Photo frame. Tap to return." onPointerDown={() => setActive(false)}>
       <PhotoSlideshow rounded={false} className="h-full w-full" intervalMs={12000}>
         <IdleNotifications />
+        <div className="absolute left-4 top-4" onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <Link to="/safety" onClick={() => setActive(false)} className="inline-flex items-center gap-2 rounded-2xl bg-red-600 px-5 py-3 font-bold text-white shadow-lg"><ShieldAlert /> Panic / SOS</Link>
+        </div>
         <div className="absolute bottom-10 left-10 text-white drop-shadow-lg">
           <p className="font-display text-8xl font-extrabold tabular-nums tracking-tight">{format(z, 'h:mm')}</p>
           <p className="mt-1 text-2xl font-medium text-white/85">{format(z, 'EEEE, d MMMM')}</p>
