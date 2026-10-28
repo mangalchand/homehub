@@ -32,6 +32,8 @@ async function session(subject: { userId: string } | { deviceId: string; househo
     get: (url: string) => request(app).get(url).set('Cookie', cookie),
     patch: (url: string, body: object) =>
       request(app).patch(url).set('Cookie', cookie).set('x-csrf-token', 'call-test').send(body),
+    post: (url: string, body: object) =>
+      request(app).post(url).set('Cookie', cookie).set('x-csrf-token', 'call-test').send(body),
     unlock: (householdId: string) =>
       request(app)
         .post(`/api/v1/households/${householdId}/pin/verify`)
@@ -46,6 +48,41 @@ beforeEach(resetDb);
 afterAll(() => prisma.$disconnect());
 
 describe('household WhatsApp call links', () => {
+  it('notifies active members and the household feed with the saved link, without joining the call', async () => {
+    const { household, ownerUser } = await makeHousehold();
+    const sibling = await addMember(household.id, 'ADULT', 'Sibling');
+    const owner = await session({ userId: ownerUser.id });
+    const familyPath = path(household.id);
+    expect((await owner.post(`${familyPath}/notify`, {})).status).toBe(400);
+    await owner.patch(familyPath, { whatsappCallUrl: voice });
+    const response = await owner.post(`${familyPath}/notify`, {});
+    expect(response.status).toBe(202);
+    expect(response.body.reminder).toMatch(/tap Join in WhatsApp/);
+    const rows = await prisma.notification.findMany({
+      where: { householdId: household.id, type: 'family-call.invitation' },
+    });
+    expect(rows.map((row) => row.memberId)).toEqual(
+      expect.arrayContaining([
+        ownerUser
+          ? (
+              await prisma.householdMember.findFirstOrThrow({
+                where: { householdId: household.id, userId: ownerUser.id },
+              })
+            ).id
+          : null,
+        sibling.member.id,
+        null,
+      ]),
+    );
+    expect(rows.every((row) => (row.data as { url?: string }).url === voice)).toBe(true);
+    expect((await owner.post(`${familyPath}/notify`, {})).status).toBe(202);
+    expect(
+      await prisma.notification.count({
+        where: { householdId: household.id, type: 'family-call.invitation' },
+      }),
+    ).toBe(rows.length);
+  });
+
   it('returns an empty state for a new household and lazily saves/clears only the call setting', async () => {
     const { household, ownerUser } = await makeHousehold();
     const actor = await session({ userId: ownerUser.id });

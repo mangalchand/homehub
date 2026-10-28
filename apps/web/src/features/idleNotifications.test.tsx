@@ -9,6 +9,7 @@ const { data } = vi.hoisted(() => ({ data: [
 ] }));
 vi.mock('@/lib/notifications', () => ({ useNotifications: () => ({ data }) }));
 vi.mock('@/lib/queries', () => ({ useHousehold: () => ({ data: { timezone: 'UTC' } }), usePhotos: () => ({ data: [] }) }));
+vi.mock('@/features/safety', () => ({ SafetyEntry: () => <button type="button">Panic / SOS</button> }));
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
@@ -23,11 +24,10 @@ describe('photo-frame alerts', () => {
     expect(screen.getByText('Milk')).toBeInTheDocument();
     expect(screen.getByText('New notification')).toBeInTheDocument();
     expect(screen.queryByText('Already read')).toBeNull();
-    const sos = screen.getByRole('link', { name: 'Panic / SOS' });
-    expect(sos).toHaveAttribute('href', '/safety');
+    const sos = screen.getByRole('button', { name: 'Panic / SOS' });
     fireEvent.pointerDown(sos);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     fireEvent.click(sos);
-    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });

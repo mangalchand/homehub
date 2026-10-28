@@ -7,6 +7,7 @@ import { retryPendingPushes, runDueSyncs } from '../calendar/sync.js';
 import { runEveningSummaries } from './eveningSummary.js';
 import { cleanupExpiredEmergencySessions } from '../routes/safety.js';
 import { retryAttachmentObjectCleanup } from '../lib/attachments.js';
+import { runDailyAnnouncements } from './dailyAnnouncements.js';
 
 /** Create in-app reminder notifications for events starting soon. Dedupe keys make this idempotent. */
 export async function generateEventReminders(now = new Date(), horizonMinutes = 24 * 60) {
@@ -16,7 +17,10 @@ export async function generateEventReminders(now = new Date(), horizonMinutes = 
       deletedAt: null,
       status: { not: 'CANCELLED' },
       reminderMinutes: { isEmpty: false },
-      OR: [{ rrule: { not: null }, startAt: { lt: horizon } }, { rrule: null, startAt: { gte: now, lt: horizon } }],
+      OR: [
+        { rrule: { not: null }, startAt: { lt: horizon } },
+        { rrule: null, startAt: { gte: now, lt: horizon } },
+      ],
     },
     include: { assignments: true, calendar: true },
     take: 2000,
@@ -31,7 +35,15 @@ export async function generateEventReminders(now = new Date(), horizonMinutes = 
         const when = DateTime.fromJSDate(occ.start).setZone(ev.timezone).toFormat('h:mm a');
         created += await notify(
           ev.householdId,
-          { type: 'event.reminder', title: ev.title, body: ev.allDay ? 'Today' : `Starts at ${when}`, url: '/calendar', data: { eventId: ev.id, startAt: occ.start.toISOString() }, householdFeed: !ev.isPrivate && ev.calendar.visibility === 'HOUSEHOLD' && ev.calendar.showOnWallDisplay },
+          {
+            type: 'event.reminder',
+            title: ev.title,
+            body: ev.allDay ? 'Today' : `Starts at ${when}`,
+            url: '/calendar',
+            data: { eventId: ev.id, startAt: occ.start.toISOString() },
+            householdFeed:
+              !ev.isPrivate && ev.calendar.visibility === 'HOUSEHOLD' && ev.calendar.showOnWallDisplay,
+          },
           { to: ev.assignments.map((a) => a.memberId), dedupeKey },
         );
       }
@@ -66,6 +78,8 @@ export function startScheduler() {
   every(30_000, 'calendar-sync', () => runDueSyncs());
   every(60_000, 'event-push-retry', () => retryPendingPushes());
   every(60_000, 'event-reminders', () => generateEventReminders());
+  every(60_000, 'daily-announcements', () => runDailyAnnouncements());
+  void safely('daily-announcements-startup', () => runDailyAnnouncements());
   every(60_000, 'evening-summary', () => runEveningSummaries());
   void safely('evening-summary-catchup', () => runEveningSummaries());
   every(60_000, 'safety-expiry', () => cleanupExpiredEmergencySessions());
@@ -75,7 +89,11 @@ export function startScheduler() {
   every(3_600_000, 'cleanup', async () => {
     const now = new Date();
     await prisma.oAuthState.deleteMany({ where: { expiresAt: { lt: now } } });
-    await prisma.session.deleteMany({ where: { OR: [{ expiresAt: { lt: now } }, { revokedAt: { lt: new Date(now.getTime() - 30 * 86400000) } }] } });
+    await prisma.session.deleteMany({
+      where: {
+        OR: [{ expiresAt: { lt: now } }, { revokedAt: { lt: new Date(now.getTime() - 30 * 86400000) } }],
+      },
+    });
   });
 }
 

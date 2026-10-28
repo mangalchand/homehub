@@ -48,7 +48,7 @@ describe('FamilyCallCard', () => {
     view();
     expect(await screen.findByText(/No family call link yet/)).toBeInTheDocument();
     expect(screen.getByText(/In WhatsApp, open Calls > Create call link/)).toBeInTheDocument();
-    expect(screen.getByText(/does not automatically ring the whole family/)).toBeInTheDocument();
+    expect(screen.getByText(/does not automatically ring or join the whole family/)).toBeInTheDocument();
     expect(screen.getByText(/anyone with the link may join/)).toHaveTextContent(
       /expire after 30 days without use.*revoked by WhatsApp/,
     );
@@ -113,6 +113,14 @@ describe('FamilyCallCard', () => {
     expect(writes()[1]?.[1]?.body).toEqual({ whatsappCallUrl: null });
     expect(screen.queryByRole('link', { name: /Join family/ })).not.toBeInTheDocument();
     expect(screen.getByText(/does not revoke the WhatsApp link or end a call/)).toBeInTheDocument();
+  });
+
+  it('sends a household notification for the saved link and explains recipients must join themselves', async () => {
+    saved = { whatsappCallUrl: voice };
+    view();
+    fireEvent.click(await screen.findByRole('button', { name: 'Notify household' }));
+    expect(await screen.findByText(/FamilyHub notification sent; WhatsApp delivery requires WhatsApp to be connected/)).toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith('/api/v1/households/home-a/family-call/notify', { method: 'POST', body: {} });
   });
 
   it('rejects invalid links locally instead of making a write request', async () => {

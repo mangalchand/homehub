@@ -86,6 +86,37 @@ afterEach(() => {
 });
 
 describe('images on real task and chore cards/editors', () => {
+  it('lets an adult add several chores from one dialog without editing the previous chore', async () => {
+    state.tasks = [];
+    state.chores = [];
+    view();
+    fireEvent.click(screen.getByRole('button', { name: 'Chore' }));
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Feed the cat' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Images for task-1');
+    fireEvent.click(screen.getByRole('button', { name: 'Add another chore' }));
+    expect(screen.getByLabelText('Title')).toHaveValue('');
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Water plants' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
+    expect(api).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/households/home-a/tasks',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.objectContaining({ kind: 'CHORE', title: 'Feed the cat' }),
+      }),
+    );
+    expect(api).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/households/home-a/tasks',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.objectContaining({ kind: 'CHORE', title: 'Water plants' }),
+      }),
+    );
+  });
+
   it('shows task images and edits text without changing an untouched due timestamp', async () => {
     view();
     expect(screen.getByText('Images for task-1')).toBeInTheDocument();

@@ -3,6 +3,7 @@ import {
   attachmentParentSchema,
   createEmergencySessionSchema,
   createNoteSchema,
+  createAnnouncementSchema,
   dailySummaryPayloadSchema,
   emergencyLocationSchema,
   householdFeatureSettingsSchema,
@@ -15,6 +16,17 @@ const id = '123e4567-e89b-42d3-a456-426614174000';
 const fix = { latitude: 10, longitude: 20, locationAt: '2026-10-27T20:00:00+01:00' };
 
 describe('family foundation contracts', () => {
+  it('validates daily announcements and rejects malformed schedules', () => {
+    expect(
+      createAnnouncementSchema.safeParse({ title: 'Medicine', repeatDaily: true, dailyTime: '08:30' })
+        .success,
+    ).toBe(true);
+    expect(createAnnouncementSchema.safeParse({ title: 'Medicine', repeatDaily: true }).success).toBe(false);
+    expect(
+      createAnnouncementSchema.safeParse({ title: 'Medicine', repeatDaily: true, dailyTime: '25:60' })
+        .success,
+    ).toBe(false);
+  });
   it('allows panic without location and requires a complete, finite latest fix when supplied', () => {
     expect(createEmergencySessionSchema.parse({})).toEqual({});
     expect(emergencyLocationSchema.parse(fix).accuracyMeters).toBeNull();
