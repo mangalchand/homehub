@@ -1,7 +1,12 @@
 import { Router, type Response } from 'express';
 import { prisma } from '../db.js';
 import { sha256 } from '../lib/crypto.js';
-import { tellDecision } from '../lib/approvals.js';
+import { requestApproval, tellDecision } from '../lib/approvals.js';
+import { AppError } from '../lib/errors.js';
+import { emailNotVerified, requireSignedInUser } from '../auth/session.js';
+
+const RESEND_COOLDOWN_MS = 10 * 60_000;
+const lastResend = new Map<string, number>();
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const STYLE = 'body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f4fb;color:#1e1b4b;display:flex;justify-content:center;padding:40px 16px;margin:0}main{background:#fff;border-radius:22px;box-shadow:0 12px 32px rgba(30,27,75,.08);padding:28px;max-width:460px;width:100%}h1{font-size:22px;margin:0 0 14px}p{line-height:1.55;overflow-wrap:anywhere}form{display:inline}button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:12px 22px;margin:14px 10px 0 0;cursor:pointer}.ok{background:#4f46e5;color:#fff}.no{background:#fee2e2;color:#991b1b}';
@@ -51,6 +56,23 @@ export function approvalsRouter() {
       if (t.kind === 'user' && decision === 'reject') await prisma.session.deleteMany({ where: { userId: t.id } });
       await Promise.all(t.notify.map((to) => tellDecision(to, t.kind === 'user' ? 'account' : 'home', decision === 'approve')));
       send(res, 200, decision === 'approve' ? 'Approved' : 'Rejected', `<p>The ${t.label} was ${decision === 'approve' ? 'approved' : 'rejected'}. We emailed them.</p>`);
+    } catch (e) {
+      next(e);
+    }
+  });
+  router.post('/approval-requests/resend', requireSignedInUser, async (req, res, next) => {
+    try {
+      const userId = req.auth!.userId!;
+      if (!req.auth!.emailVerified) throw emailNotVerified();
+      if (Date.now() - (lastResend.get(userId) ?? 0) < RESEND_COOLDOWN_MS) throw new AppError(429, 'RATE_LIMITED', 'Your request was sent a few minutes ago. Please wait before sending it again.');
+      lastResend.set(userId, Date.now());
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+      const homes = await prisma.household.findMany({ where: { approvalStatus: 'PENDING', members: { some: { userId, role: 'OWNER' } } } });
+      const sent = await Promise.all([
+        ...(user.approvalStatus === 'PENDING' ? [requestApproval('user', user.id, 'PENDING', `New account: ${user.displayName} <${user.email}>`)] : []),
+        ...homes.map((h) => requestApproval('household', h.id, 'PENDING', `New home "${h.name}" (${h.timezone}) created by ${user.displayName} <${user.email}>`)),
+      ]);
+      res.json({ requested: sent.length, sent: sent.filter(Boolean).length });
     } catch (e) {
       next(e);
     }
