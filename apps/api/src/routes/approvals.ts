@@ -64,8 +64,10 @@ export function approvalsRouter() {
     try {
       const userId = req.auth!.userId!;
       if (!req.auth!.emailVerified) throw emailNotVerified();
-      if (Date.now() - (lastResend.get(userId) ?? 0) < RESEND_COOLDOWN_MS) throw new AppError(429, 'RATE_LIMITED', 'Your request was sent a few minutes ago. Please wait before sending it again.');
-      lastResend.set(userId, Date.now());
+      const now = Date.now();
+      for (const [k, at] of lastResend) if (now - at >= RESEND_COOLDOWN_MS) lastResend.delete(k);
+      if (lastResend.has(userId)) throw new AppError(429, 'RATE_LIMITED', 'Your request was sent a few minutes ago. Please wait before sending it again.');
+      lastResend.set(userId, now);
       const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
       const homes = await prisma.household.findMany({ where: { approvalStatus: 'PENDING', members: { some: { userId, role: 'OWNER' } } } });
       const sent = await Promise.all([
