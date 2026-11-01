@@ -90,8 +90,9 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       const ttlMs = (session.deviceId ? config.DEVICE_SESSION_TTL_DAYS : config.SESSION_TTL_DAYS) * 86400000;
       const renew = session.expiresAt.getTime() - now.getTime() < ttlMs / 2;
       const data = renew ? { lastSeenAt: now, expiresAt: new Date(now.getTime() + ttlMs) } : { lastSeenAt: now };
-      void prisma.session.update({ where: { id: session.id }, data }).catch(() => undefined);
-      if (renew) res.cookie(SESSION_COOKIE, token, cookieOptions(ttlMs));
+      const update = prisma.session.update({ where: { id: session.id }, data });
+      if (renew) await update.then(() => res.cookie(SESSION_COOKIE, token, cookieOptions(ttlMs))).catch(() => undefined);
+      else void update.catch(() => undefined);
       if (session.deviceId) {
         void prisma.device.update({ where: { id: session.deviceId }, data: { lastSeenAt: now } }).catch(() => undefined);
       }
