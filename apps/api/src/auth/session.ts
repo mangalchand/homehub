@@ -7,6 +7,7 @@ import { randomToken, safeEqual, sha256 } from '../lib/crypto.js';
 export const SESSION_COOKIE = 'fh_session';
 export const CSRF_COOKIE = 'fh_csrf';
 export const CSRF_HEADER = 'x-csrf-token';
+const CSRF_MAX_AGE_MS = 400 * 86400000;
 
 export interface AuthInfo {
   sessionId: string;
@@ -66,7 +67,7 @@ export function clearSessionCookie(res: Response) {
 }
 
 /** Non-failing: attaches req.auth when a valid session cookie is present. */
-export async function authenticate(req: Request, _res: Response, next: NextFunction) {
+export async function authenticate(req: Request, res: Response, next: NextFunction) {
   try {
     const token = req.cookies?.[SESSION_COOKIE] as string | undefined;
     if (!token) return next();
@@ -85,7 +86,12 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       emailVerified: !session.userId || Boolean(session.user?.emailVerifiedAt),
     };
     if (now.getTime() - session.lastSeenAt.getTime() > 5 * 60000) {
-      void prisma.session.update({ where: { id: session.id }, data: { lastSeenAt: now } }).catch(() => undefined);
+      // Sliding expiry: active sessions renew so people (and wall displays) are never signed out mid-use.
+      const ttlMs = (session.deviceId ? config.DEVICE_SESSION_TTL_DAYS : config.SESSION_TTL_DAYS) * 86400000;
+      const renew = session.expiresAt.getTime() - now.getTime() < ttlMs / 2;
+      const data = renew ? { lastSeenAt: now, expiresAt: new Date(now.getTime() + ttlMs) } : { lastSeenAt: now };
+      void prisma.session.update({ where: { id: session.id }, data }).catch(() => undefined);
+      if (renew) res.cookie(SESSION_COOKIE, token, cookieOptions(ttlMs));
       if (session.deviceId) {
         void prisma.device.update({ where: { id: session.deviceId }, data: { lastSeenAt: now } }).catch(() => undefined);
       }
@@ -125,14 +131,14 @@ export function csrfProtection(exemptPrefixes: string[]) {
     let token = req.cookies?.[CSRF_COOKIE] as string | undefined;
     if (!token) {
       token = randomToken(24);
-      res.cookie(CSRF_COOKIE, token, { httpOnly: false, secure: config.COOKIE_SECURE, sameSite: 'lax', path: '/' });
+      res.cookie(CSRF_COOKIE, token, { httpOnly: false, secure: config.COOKIE_SECURE, sameSite: 'lax', path: '/', maxAge: CSRF_MAX_AGE_MS });
       req.cookies[CSRF_COOKIE] = token;
     }
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
     if (exemptPrefixes.some((p) => req.path.startsWith(p))) return next();
     const header = req.get(CSRF_HEADER);
     if (!header || !safeEqual(header, token)) {
-      return next(forbidden('Missing or invalid CSRF token'));
+      return next(new AppError(403, 'CSRF', 'Missing or invalid CSRF token'));
     }
     next();
   };

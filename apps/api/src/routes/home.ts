@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import type { ListItem, Prisma } from '@prisma/client';
+import type { ListItem, MealPlan, Prisma } from '@prisma/client';
 import {
   createAnnouncementSchema,
+  createMealPlanSchema,
+  mealRangeQuerySchema,
+  updateMealPlanSchema,
   createListItemSchema,
   createListSchema,
   updateAnnouncementSchema,
@@ -725,6 +728,48 @@ export function homeRouter() {
       return { updated: r.count };
     },
   );
+
+  // ── Meal planning ──
+  const mealDay = (d: string) => new Date(d + 'T00:00:00Z');
+  const mealDTO = (p: MealPlan) => ({ id: p.id, date: p.date.toISOString().slice(0, 10), slot: p.slot, title: p.title ?? '', notes: p.notes });
+  const mealsChanged = (hid: string) => realtime.publish(hid, { type: 'meals.changed' });
+
+  route(m, { method: 'get', path: '/meals', summary: 'Meal plan for a date range (up to 62 days)', tags: ['Meals'], query: mealRangeQuerySchema }, async (req, _res, { query }) => {
+    const c = ctx(req);
+    const start = mealDay(query.start);
+    const end = mealDay(query.end);
+    if (end < start || end.getTime() - start.getTime() > 62 * 86400000) throw badRequest('Choose a range of up to 62 days');
+    const rows = await prisma.mealPlan.findMany({ where: { householdId: c.householdId, date: { gte: start, lte: end } }, orderBy: [{ date: 'asc' }, { slot: 'asc' }] });
+    return rows.map(mealDTO);
+  });
+
+  route(m, { method: 'post', path: '/meals', summary: 'Plan a meal', tags: ['Meals'], body: createMealPlanSchema, status: 201, middleware: [requireCap('lists.write')] }, async (req, _res, { body }) => {
+    const c = ctx(req);
+    const p = await prisma.mealPlan.create({ data: { householdId: c.householdId, date: mealDay(body.date), slot: body.slot, title: body.title, notes: body.notes ?? null } });
+    await audit(req, { householdId: c.householdId, action: 'meal.created', entityType: 'meal', entityId: p.id });
+    mealsChanged(c.householdId);
+    return mealDTO(p);
+  });
+
+  route(m, { method: 'patch', path: '/meals/:mealId', summary: 'Update a planned meal', tags: ['Meals'], body: updateMealPlanSchema, middleware: [requireCap('lists.write')] }, async (req, _res, { body }) => {
+    const c = ctx(req);
+    const r = await prisma.mealPlan.updateMany({
+      where: { id: req.params.mealId, householdId: c.householdId },
+      data: { ...(body.date ? { date: mealDay(body.date) } : {}), ...(body.slot ? { slot: body.slot } : {}), ...(body.title !== undefined ? { title: body.title } : {}), ...(body.notes !== undefined ? { notes: body.notes } : {}) },
+    });
+    if (!r.count) throw notFound('Meal');
+    mealsChanged(c.householdId);
+    return mealDTO(await prisma.mealPlan.findUniqueOrThrow({ where: { id: req.params.mealId } }));
+  });
+
+  route(m, { method: 'delete', path: '/meals/:mealId', summary: 'Remove a planned meal', tags: ['Meals'], middleware: [requireCap('lists.write')] }, async (req) => {
+    const c = ctx(req);
+    const r = await prisma.mealPlan.deleteMany({ where: { id: req.params.mealId, householdId: c.householdId } });
+    if (!r.count) throw notFound('Meal');
+    await audit(req, { householdId: c.householdId, action: 'meal.deleted', entityType: 'meal', entityId: req.params.mealId! });
+    mealsChanged(c.householdId);
+    return undefined;
+  });
 
   return router;
 }

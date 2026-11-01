@@ -916,6 +916,7 @@ model Reward {
   title       String
   description String?
   icon        String?
+  imageUrl    String?  @map("image_url")
   cost        Int
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")

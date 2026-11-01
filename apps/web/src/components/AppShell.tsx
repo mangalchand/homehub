@@ -21,6 +21,7 @@ import {
   NotebookPen,
   Megaphone,
   ClipboardList,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { Screensaver } from '@/features/photos';
 import { SpokenAlertsRunner } from '@/features/spokenAlerts';
@@ -46,6 +47,7 @@ const NAV = [
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/chores', label: 'Chores', icon: Sparkles },
   { to: '/lists', label: 'Lists', icon: ShoppingBasket },
+  { to: '/meals', label: 'Meals', icon: UtensilsCrossed },
   { to: '/photos', label: 'Photos', icon: Images },
   { to: '/rewards', label: 'Rewards', icon: Gift },
   { to: '/family', label: 'Family', icon: Users },
@@ -58,6 +60,7 @@ const NAV = [
 ];
 const MOBILE_NAV = ['/', '/calendar', '/chores', '/lists', '/photos'];
 const MORE_HINT: Record<string, string> = {
+  '/meals': 'Weekly meal plan',
   '/rewards': 'Points & prizes',
   '/family': 'Members & invites',
   '/safety': 'SOS & shared location',

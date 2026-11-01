@@ -21,6 +21,8 @@ import { route, type Mount } from '../lib/route.js';
 import { assertCap, ctx, householdContext, requireCap } from '../auth/context.js';
 import { expandOccurrences, stripRrulePrefix } from '../calendar/recurrence.js';
 import { notify } from '../lib/notify.js';
+import { storage } from '../lib/storage.js';
+import { rewardImageObjectKey } from './photos.js';
 import { attachmentParent, cleanupAttachmentObjects, queueAttachmentCleanup } from '../lib/attachments.js';
 
 const taskInclude = {
@@ -365,8 +367,11 @@ export function tasksRouter() {
 
   route(m, { method: 'delete', path: '/rewards/:rewardId', summary: 'Delete a reward', tags: ['Rewards'], middleware: [requireCap('rewards.manage')] }, async (req) => {
     const c = ctx(req);
+    const reward = await prisma.reward.findFirst({ where: { id: req.params.rewardId, householdId: c.householdId } });
     const r = await prisma.reward.deleteMany({ where: { id: req.params.rewardId, householdId: c.householdId } });
-    if (!r.count) throw notFound('Reward');
+    if (!r.count || !reward) throw notFound('Reward');
+    const key = rewardImageObjectKey(c.householdId, reward);
+    if (key) await storage().remove(key).catch(() => undefined);
     realtime.publish(c.householdId, { type: 'rewards.changed' });
     return undefined;
   });

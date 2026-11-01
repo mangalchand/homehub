@@ -13,6 +13,11 @@ export class ApiRequestError extends Error {
 }
 
 let csrfToken: string | null = null;
+let onUnauthorized: (() => void) | null = null;
+/** Called when a signed-in request comes back 401 (session ended), so the app can return to sign-in. */
+export const setUnauthorizedHandler = (fn: () => void) => {
+  onUnauthorized = fn;
+};
 
 async function getCsrf(force = false): Promise<string> {
   if (csrfToken && !force) return csrfToken;
@@ -60,6 +65,7 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}, 
       return api<T>(path, opts, true);
     }
   }
+  if (res.status === 401 && !path.startsWith('/api/v1/auth/')) onUnauthorized?.();
   if (res.status === 204) return undefined as T;
   const ct = res.headers.get('content-type') ?? '';
   const data = ct.includes('json') ? await res.json() : await res.text();
