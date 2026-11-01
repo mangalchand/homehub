@@ -1,3 +1,4 @@
+import { initialApproval, requestApproval } from '../lib/approvals.js';
 import { cleanupAttachmentObjects, queueAttachmentCleanup } from '../lib/attachments.js';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -52,13 +53,15 @@ export function householdRootRouter() {
       const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.userId! } });
       const { household, owner } = await createHouseholdWithDefaults({
         userId: user.id,
+        approvalStatus: initialApproval(user.email),
         name: body.name,
         timezone: body.timezone,
         ownerFirstName: body.ownerFirstName ?? user.displayName.split(' ')[0] ?? user.displayName,
         ownerColor: body.ownerColor,
       });
       await audit(req, { householdId: household.id, action: 'household.created', entityType: 'household', entityId: household.id });
-      return { household: householdDTO(household), memberId: owner.id };
+      await requestApproval('household', household.id, household.approvalStatus, `New home "${household.name}" (${household.timezone}) created by ${user.displayName} <${user.email}>`);
+      return { household: householdDTO(household), memberId: owner.id, approvalStatus: household.approvalStatus };
     },
   );
   return router;

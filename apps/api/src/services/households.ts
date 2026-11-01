@@ -19,10 +19,11 @@ export async function createHouseholdWithDefaults(input: {
   timezone: string;
   ownerFirstName: string;
   ownerColor?: string;
+  approvalStatus?: string;
 }) {
   return prisma.$transaction(async (tx) => {
     const household = await tx.household.create({
-      data: { name: input.name, timezone: input.timezone, settings: { temperatureUnit: 'celsius', clockFormat: '12h' } },
+      data: { name: input.name, timezone: input.timezone, approvalStatus: input.approvalStatus ?? 'APPROVED', settings: { temperatureUnit: 'celsius', clockFormat: '12h' } },
     });
     const owner = await tx.householdMember.create({
       data: {

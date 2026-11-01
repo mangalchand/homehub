@@ -10,6 +10,8 @@ import { useUi } from './store/ui';
 import { AppShell } from './components/AppShell';
 import { Spinner } from './components/ui/misc';
 import { LoginPage } from './pages/Login';
+import { publicPage } from './pages/Legal';
+import { PendingApprovalPage } from './pages/PendingApproval';
 import { OnboardingPage } from './pages/Onboarding';
 import { AcceptInvite, InviteLanding, pendingInvite } from './pages/Invite';
 import { JoinPendingPage, VerifyEmailPage } from './features/join';
@@ -75,6 +77,8 @@ export function App() {
   }, [me.data, householdId, setHousehold]);
 
   if (loc.pathname === '/alexa/link') rememberAlexaLink(loc.search);
+  const PublicPage = publicPage(loc.pathname);
+  if (PublicPage) return <PublicPage />;
   if (me.isPending) return <Loading />;
   const unauth = me.error instanceof ApiRequestError && me.error.status === 401;
   if (unauth || !me.data) {
@@ -90,12 +94,15 @@ export function App() {
     );
   }
   if (me.data.kind === 'user' && me.data.user && !me.data.user.emailVerified) return <VerifyEmailPage email={me.data.user.email} />;
+  if (me.data.kind === 'user' && me.data.user?.approvalStatus && me.data.user.approvalStatus !== 'APPROVED') return <PendingApprovalPage status={me.data.user.approvalStatus} />;
   if (me.data.kind === 'user' && pendingAlexaLink()) return <AlexaLinkPage />;
   if (loc.pathname.startsWith('/invite/')) return <Routes><Route path="/invite/:token" element={<AcceptInvite />} /></Routes>;
   if (pendingInvite()) return <AcceptInvite />;
   const joins = me.data.joinRequests ?? [];
   const join = joins.find((j) => loc.pathname === `/join/${j.id}`) ?? (!me.data.memberships.length && loc.pathname !== '/homes' && loc.pathname !== '/create-home' ? joins[0] : undefined);
   if (join) return <JoinPendingPage key={join.id} request={join} allowBack={me.data.kind === 'user'} />;
+  const pendingHome = me.data.pendingHouseholds?.[0];
+  if (!me.data.memberships.length && pendingHome && loc.pathname !== '/create-home') return <PendingApprovalPage status={pendingHome.approvalStatus} homeName={pendingHome.householdName} />;
   if (!me.data.memberships.length) return loc.pathname === '/create-home' ? <OnboardingPage /> : <Suspense fallback={<Loading />}><HomesPage /></Suspense>;
   if (!householdId) return <Loading />;
 

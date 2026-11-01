@@ -1,3 +1,4 @@
+import { initialApproval, requestApproval } from '../lib/approvals.js';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -63,10 +64,11 @@ export function authRouter() {
       const existing = await prisma.user.findUnique({ where: { email: body.email } });
       if (existing) throw conflict('An account with this email already exists');
       const user = await prisma.user.create({
-        data: { email: body.email, displayName: body.displayName, passwordHash: await hashSecret(body.password) },
+        data: { email: body.email, displayName: body.displayName, passwordHash: await hashSecret(body.password), approvalStatus: initialApproval(body.email) },
       });
       await startSession(req, res, { userId: user.id });
       await audit(req, { action: 'auth.register', entityType: 'user', entityId: user.id });
+      await requestApproval('user', user.id, user.approvalStatus, `New account: ${user.displayName} <${user.email}>`);
       const emailSent = await sendVerifyCode(user);
       return { user: { id: user.id, email: user.email, displayName: user.displayName, emailVerified: false }, emailSent };
     },
@@ -157,17 +159,20 @@ export function authRouter() {
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: auth.userId! },
       include: {
-        memberships: { where: { isActive: true, OR: [{ accessExpiresAt: null }, { accessExpiresAt: { gt: new Date() } }] }, include: { household: { select: { id: true, name: true } } } },
+        memberships: { where: { isActive: true, OR: [{ accessExpiresAt: null }, { accessExpiresAt: { gt: new Date() } }] }, include: { household: { select: { id: true, name: true, approvalStatus: true } } } },
         preferences: true,
         joinRequests: { where: activeJoinWhere(), include: { household: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
       },
     });
     return {
       kind: 'user',
-      user: { id: user.id, email: user.email, displayName: user.displayName, hasPassword: Boolean(user.passwordHash), emailVerified: Boolean(user.emailVerifiedAt) },
+      user: { id: user.id, email: user.email, displayName: user.displayName, hasPassword: Boolean(user.passwordHash), emailVerified: Boolean(user.emailVerifiedAt), approvalStatus: user.approvalStatus },
       joinRequests: user.joinRequests.map((j) => joinRequestDTO({ ...j, user })),
       preferences: user.preferences?.data ?? {},
-      memberships: user.memberships.map((mm) => ({
+      pendingHouseholds: user.memberships
+        .filter((mm) => mm.household.approvalStatus !== 'APPROVED')
+        .map((mm) => ({ householdId: mm.householdId, householdName: mm.household.name, approvalStatus: mm.household.approvalStatus })),
+      memberships: user.memberships.filter((mm) => mm.household.approvalStatus === 'APPROVED').map((mm) => ({
         householdId: mm.householdId,
         householdName: mm.household.name,
         memberId: mm.id,
@@ -345,9 +350,12 @@ export function authRouter() {
       let user = await prisma.user.findUnique({ where: { googleSubject: info.sub } });
       user ??= await prisma.user.findUnique({ where: { email } });
       if (user && !user.googleSubject) user = await prisma.user.update({ where: { id: user.id }, data: { googleSubject: info.sub } });
-      user ??= await prisma.user.create({
-        data: { email, googleSubject: info.sub, displayName: info.name ?? email.split('@')[0]!, emailVerifiedAt: new Date() },
-      });
+      if (!user) {
+        user = await prisma.user.create({
+          data: { email, googleSubject: info.sub, displayName: info.name ?? email.split('@')[0]!, emailVerifiedAt: new Date(), approvalStatus: initialApproval(email) },
+        });
+        await requestApproval('user', user.id, user.approvalStatus, `New account (Google): ${user.displayName} <${user.email}>`);
+      }
       await startSession(req, res, { userId: user.id });
       await audit(req, { action: 'auth.login_google', entityType: 'user', entityId: user.id });
       res.redirect(config.WEB_ORIGIN);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays, Cake, ListTodo, Megaphone, ShoppingCart, Sparkles } from 'lucide-react';
+import { CalendarDays, Cake, ClipboardList, Gift, Home, Images, ListTodo, Megaphone, NotebookPen, ShieldAlert, ShoppingBasket, ShoppingCart, Sparkles, Users, UtensilsCrossed } from 'lucide-react';
 import { addDays, format, isSameDay, startOfDay } from 'date-fns';
 import type { EventOccurrenceDTO, MemberDTO } from '@familyhub/shared';
 import {
@@ -390,6 +390,36 @@ const SPAN: Record<Widget['size'], string> = {
   lg: 'lg:col-span-2',
 };
 
+const APPS = [
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays, tone: 'from-sky-400 to-blue-600' },
+  { to: '/chores', label: 'Chores', icon: Sparkles, tone: 'from-amber-400 to-orange-500' },
+  { to: '/lists', label: 'Lists', icon: ShoppingBasket, tone: 'from-emerald-400 to-green-600' },
+  { to: '/meals', label: 'Meals', icon: UtensilsCrossed, tone: 'from-orange-400 to-rose-500' },
+  { to: '/photos', label: 'Photos', icon: Images, tone: 'from-fuchsia-400 to-purple-600' },
+  { to: '/rewards', label: 'Rewards', icon: Gift, tone: 'from-pink-400 to-rose-600' },
+  { to: '/family', label: 'Family', icon: Users, tone: 'from-indigo-400 to-violet-600' },
+  { to: '/notes', label: 'Notes', icon: NotebookPen, tone: 'from-yellow-400 to-amber-500' },
+  { to: '/announcements', label: 'Announce', icon: Megaphone, tone: 'from-cyan-400 to-teal-600' },
+  { to: '/summaries', label: 'Summary', icon: ClipboardList, tone: 'from-slate-400 to-slate-600' },
+  { to: '/safety', label: 'Safety', icon: ShieldAlert, tone: 'from-red-400 to-red-600' },
+  { to: '/home-management', label: 'Home', icon: Home, tone: 'from-violet-400 to-indigo-700' },
+];
+
+function AppLauncher() {
+  return (
+    <nav aria-label="Apps" className="grid grid-cols-4 gap-x-2 gap-y-4 rounded-3xl border bg-card/80 p-4 shadow-sm sm:grid-cols-6 lg:grid-cols-12">
+      {APPS.map((a) => (
+        <Link key={a.to} to={a.to} className="group flex min-w-0 flex-col items-center gap-2 rounded-2xl p-1 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <span className={cn('flex h-14 w-14 items-center justify-center rounded-[18px] bg-gradient-to-br text-white shadow-md transition-transform group-hover:scale-105 group-active:scale-95 md:h-16 md:w-16', a.tone)}>
+            <a.icon className="h-7 w-7" />
+          </span>
+          <span className="w-full text-xs font-semibold leading-tight text-foreground [overflow-wrap:anywhere] sm:text-[13px]">{a.label}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 export default function DashboardPage() {
   const members = (useMembers().data ?? []).filter((m) => m.isActive);
   const layout = useActiveLayout().data;
@@ -442,6 +472,7 @@ export default function DashboardPage() {
           <UpNextOverlay members={members} />
         </div>
       </PhotoSlideshow>
+      <AppLauncher />
       <div className="grid gap-5 lg:grid-cols-3">
         {widgets
           .filter((w) => w.type !== 'clock' && w.type !== 'weather')

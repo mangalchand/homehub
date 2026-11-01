@@ -51,6 +51,8 @@ const schema = z.object({
   ALEXA_CLIENT_ID: z.string().optional().default(''),
   ALEXA_CLIENT_SECRET: z.string().optional().default(''),
   ALEXA_SKILL_ID: z.string().optional().default(''),
+  /** When set, new accounts and homes stay pending until this person approves them by email. */
+  PLATFORM_OWNER_EMAIL: z.string().optional().default(''),
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   UPLOAD_DIR: z.string().default('./data/uploads'),
   S3_BUCKET: z.string().optional().default(''),

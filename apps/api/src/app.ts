@@ -1,3 +1,4 @@
+import { approvalsRouter } from './routes/approvals.js';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
@@ -67,9 +68,10 @@ export function createApp() {
   });
 
   app.use(authenticate);
-  app.use(csrfProtection(['/api/v1/integrations/google/callback', '/api/v1/integrations/microsoft/callback', '/api/v1/auth/google/callback', '/api/v1/alexa/token', '/api/v1/alexa/skill']));
+  app.use(csrfProtection(['/api/v1/integrations/google/callback', '/api/v1/integrations/microsoft/callback', '/api/v1/auth/google/callback', '/api/v1/alexa/token', '/api/v1/alexa/skill', '/api/v1/approvals/']));
 
   app.use('/api/v1', authRouter());
+  app.use('/api/v1', approvalsRouter());
   app.use('/api/v1/alexa', alexaRouter());
   app.use(integrationCallbackRouter());
   app.use('/api/v1', householdRootRouter());

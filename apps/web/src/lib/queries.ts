@@ -13,7 +13,8 @@ export interface Membership {
 }
 export interface Me {
   kind: 'user' | 'device';
-  user?: { id: string; email: string; displayName: string; hasPassword: boolean; emailVerified: boolean };
+  user?: { id: string; email: string; displayName: string; hasPassword: boolean; emailVerified: boolean; approvalStatus?: string };
+  pendingHouseholds?: { householdId: string; householdName: string; approvalStatus: string }[];
   device?: { id: string; name: string; householdId: string };
   memberships: Membership[];
   session: { id: string; pinElevatedUntil: string | null };
