@@ -61,6 +61,21 @@ describe('owner approval', () => {
     expect((await agent.get('/api/v1/households/' + hid + '/members')).status).toBe(200);
   });
 
+  it('lets a pending requester resend the approval email, replacing the old link', async () => {
+    const { agent } = await register('ravi@example.com');
+    const first = lastLink()!;
+    const csrf = (await agent.get('/api/v1/auth/csrf')).body.csrfToken as string;
+    const r = await agent.post('/api/v1/approval-requests/resend').set('x-csrf-token', csrf);
+    expect(r.status).toBe(200);
+    expect(r.body.requested).toBe(1);
+    const second = lastLink()!;
+    expect(second).not.toBe(first);
+    expect((await request(app).post('/api/v1/approvals/' + first + '/approve')).status).toBe(404);
+    expect((await agent.post('/api/v1/approval-requests/resend').set('x-csrf-token', csrf)).status).toBe(429);
+    expect((await request(app).post('/api/v1/approvals/' + second + '/approve')).status).toBe(200);
+    expect((await agent.get('/api/v1/auth/me')).body.user.approvalStatus).toBe('APPROVED');
+  });
+
   it('signs out rejected accounts and auto-approves the owner', async () => {
     const { agent } = await register('mallory@example.com');
     await request(app).post('/api/v1/approvals/' + lastLink()! + '/reject');

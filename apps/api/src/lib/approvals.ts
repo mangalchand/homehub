@@ -11,7 +11,7 @@ const origin = () => config.WEB_ORIGIN.split(',')[0]!.trim().replace(/\/$/, '');
 export const initialApproval = (email: string) => (!ownerEmail() || email.trim().toLowerCase() === ownerEmail() ? 'APPROVED' : 'PENDING');
 
 export async function requestApproval(kind: 'user' | 'household', id: string, status: string, summary: string) {
-  if (status !== 'PENDING' || !ownerEmail()) return;
+  if (status !== 'PENDING' || !ownerEmail()) return false;
   const token = randomToken(32);
   if (kind === 'user') await prisma.user.update({ where: { id }, data: { approvalTokenHash: sha256(token) } });
   else await prisma.household.update({ where: { id }, data: { approvalTokenHash: sha256(token) } });
@@ -21,6 +21,7 @@ export async function requestApproval(kind: 'user' | 'household', id: string, st
     text: `${summary}\n\nApprove or reject it here (the link works once):\n${origin()}/api/v1/approvals/${token}\n\nUntil you approve, they cannot use FamilyHub.`,
   });
   if (!sent) logger.warn({ kind, id }, '[approval] approval email was not delivered');
+  return sent;
 }
 
 export async function tellDecision(to: string, what: string, approved: boolean) {

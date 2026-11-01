@@ -102,7 +102,7 @@ export function App() {
   const join = joins.find((j) => loc.pathname === `/join/${j.id}`) ?? (!me.data.memberships.length && loc.pathname !== '/homes' && loc.pathname !== '/create-home' ? joins[0] : undefined);
   if (join) return <JoinPendingPage key={join.id} request={join} allowBack={me.data.kind === 'user'} />;
   const pendingHome = me.data.pendingHouseholds?.[0];
-  if (!me.data.memberships.length && pendingHome && loc.pathname !== '/create-home') return <PendingApprovalPage status={pendingHome.approvalStatus} homeName={pendingHome.householdName} />;
+  if (!me.data.memberships.length && pendingHome && loc.pathname !== '/create-home' && loc.pathname !== '/homes') return <PendingApprovalPage status={pendingHome.approvalStatus} homeName={pendingHome.householdName} />;
   if (!me.data.memberships.length) return loc.pathname === '/create-home' ? <OnboardingPage /> : <Suspense fallback={<Loading />}><HomesPage /></Suspense>;
   if (!householdId) return <Loading />;
 
