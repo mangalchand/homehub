@@ -1,0 +1,222 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "family hub",
+      "intents": [
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "AddTaskIntent",
+          "slots": [
+            {
+              "name": "task",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "add a task {task}",
+            "add a task to {task}",
+            "create a task to {task}",
+            "new task {task}",
+            "remind the family to {task}"
+          ]
+        },
+        {
+          "name": "AddToListIntent",
+          "slots": [
+            {
+              "name": "item",
+              "type": "LIST_ITEM"
+            },
+            {
+              "name": "list",
+              "type": "LIST_NAME"
+            }
+          ],
+          "samples": [
+            "add {item} to the {list} list",
+            "add {item} to {list}",
+            "put {item} on the {list} list",
+            "add {item} to the list",
+            "we need {item}",
+            "we are out of {item}"
+          ]
+        },
+        {
+          "name": "AgendaIntent",
+          "slots": [
+            {
+              "name": "date",
+              "type": "AMAZON.DATE"
+            }
+          ],
+          "samples": [
+            "what's on today",
+            "what is on the calendar",
+            "what's happening {date}",
+            "what is on {date}",
+            "what's our schedule {date}"
+          ]
+        },
+        {
+          "name": "SummaryIntent",
+          "samples": [
+            "daily summary",
+            "give me the daily summary",
+            "what's left to do",
+            "which chores are left",
+            "what tasks are pending"
+          ]
+        },
+        {
+          "name": "PointsIntent",
+          "samples": [
+            "how many points do we have",
+            "points",
+            "read the points",
+            "who has the most points"
+          ]
+        },
+        {
+          "name": "NotificationsIntent",
+          "samples": [
+            "read my notifications",
+            "any notifications",
+            "what are my notifications",
+            "read notifications"
+          ]
+        }
+      ],
+      "types": [
+        {
+          "name": "LIST_ITEM",
+          "values": [
+            {
+              "name": {
+                "value": "milk"
+              }
+            },
+            {
+              "name": {
+                "value": "eggs"
+              }
+            },
+            {
+              "name": {
+                "value": "bread"
+              }
+            },
+            {
+              "name": {
+                "value": "bananas"
+              }
+            },
+            {
+              "name": {
+                "value": "rice"
+              }
+            },
+            {
+              "name": {
+                "value": "coffee"
+              }
+            },
+            {
+              "name": {
+                "value": "paper towels"
+              }
+            },
+            {
+              "name": {
+                "value": "dish soap"
+              }
+            },
+            {
+              "name": {
+                "value": "apples"
+              }
+            },
+            {
+              "name": {
+                "value": "chicken"
+              }
+            },
+            {
+              "name": {
+                "value": "milk eggs and bread"
+              }
+            },
+            {
+              "name": {
+                "value": "toothpaste"
+              }
+            }
+          ]
+        },
+        {
+          "name": "LIST_NAME",
+          "values": [
+            {
+              "name": {
+                "value": "grocery"
+              }
+            },
+            {
+              "name": {
+                "value": "groceries"
+              }
+            },
+            {
+              "name": {
+                "value": "shopping"
+              }
+            },
+            {
+              "name": {
+                "value": "household"
+              }
+            },
+            {
+              "name": {
+                "value": "school"
+              }
+            },
+            {
+              "name": {
+                "value": "packing"
+              }
+            },
+            {
+              "name": {
+                "value": "to do"
+              }
+            },
+            {
+              "name": {
+                "value": "wish"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

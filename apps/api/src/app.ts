@@ -24,6 +24,7 @@ import { notesRouter } from './routes/notes.js';
 import { attachmentsRouter } from './routes/attachments.js';
 import { summariesRouter } from './routes/summaries.js';
 import { familyCallRouter } from './routes/familyCall.js';
+import { alexaLinksRouter, alexaRouter } from './routes/alexa.js';
 import { logger } from './logger.js';
 
 export function buildOpenApiDocument() {
@@ -47,6 +48,7 @@ export function createApp() {
     }),
   );
   app.use(cors({ origin: config.WEB_ORIGIN.split(','), credentials: true }));
+  app.use('/api/v1/alexa/skill', express.raw({ type: () => true, limit: '256kb' }));
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
   app.use((req, _res, next) => {
@@ -65,9 +67,10 @@ export function createApp() {
   });
 
   app.use(authenticate);
-  app.use(csrfProtection(['/api/v1/integrations/google/callback', '/api/v1/integrations/microsoft/callback', '/api/v1/auth/google/callback']));
+  app.use(csrfProtection(['/api/v1/integrations/google/callback', '/api/v1/integrations/microsoft/callback', '/api/v1/auth/google/callback', '/api/v1/alexa/token', '/api/v1/alexa/skill']));
 
   app.use('/api/v1', authRouter());
+  app.use('/api/v1/alexa', alexaRouter());
   app.use(integrationCallbackRouter());
   app.use('/api/v1', householdRootRouter());
   app.use('/api/v1', joinUserRouter());
@@ -86,6 +89,7 @@ export function createApp() {
   app.use(scoped, attachmentsRouter());
   app.use(scoped, summariesRouter());
   app.use(scoped, familyCallRouter());
+  app.use(scoped, alexaLinksRouter());
 
   const doc = buildOpenApiDocument();
   app.get('/api/openapi.json', (_req, res) => res.json(doc));
