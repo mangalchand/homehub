@@ -1,3 +1,4 @@
+import { roleCan, type MemberRole } from '@familyhub/shared';
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import type { CalendarDTO, EventOccurrenceDTO, MemberDTO } from '@familyhub/shared';
 import { api, hh } from './api';
@@ -250,6 +251,7 @@ export function useRole() {
     isAdult: adult,
     isAdmin: ['OWNER', 'ADULT_ADMIN'].includes(role) || (isDevice && elevated),
     canWriteEvents: adult,
+    canManageRewards: !isDevice && roleCan(role as MemberRole, 'rewards.manage'),
   };
 }
 

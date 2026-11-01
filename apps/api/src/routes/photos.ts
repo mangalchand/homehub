@@ -212,7 +212,8 @@ export function photosRouter() {
     try {
       const c = ctx(req);
       const reward = await prisma.reward.findFirst({ where: { id: req.params.rewardId, householdId: c.householdId } });
-      const key = reward ? rewardImageObjectKey(c.householdId, reward) : null;
+      const current = reward?.imageUrl?.endsWith('?v=' + String(req.query.v));
+      const key = reward && current ? rewardImageObjectKey(c.householdId, reward) : null;
       const body = key ? await storage().get(key) : null;
       if (!body) throw notFound('Picture');
       res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'private, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
