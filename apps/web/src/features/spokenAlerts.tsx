@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Volume2, Square } from 'lucide-react';
 import { api, hh } from '@/lib/api';
@@ -6,6 +6,7 @@ import { useHid, useMe } from '@/lib/queries';
 import { currentVoiceSession, deviceNotifications, householdActor, notificationReading, readNotifications, readPoints, voiceError, voiceScope, type FeedNotification } from '@/lib/voice/household';
 import { isListening, isSpeaking, speak, stopSpeaking } from '@/lib/voice/speech';
 import { Button } from '@/components/ui/button';
+import { isNativeApp } from '@/lib/nativePush';
 
 /** Scope changes invalidate pending fetches as well as cancelling speech. */
 export function useReadAloud(scope: string | null) {
@@ -80,23 +81,32 @@ export class SpokenAlertTracker {
   }
 }
 
-/** Mount at most once in the paired display shell. Never listens to the microphone. */
-export function SpokenAlertsControl() {
+type AlertsState = { enabled: boolean; armed: boolean; error: string };
+const alertListeners = new Set<() => void>();
+let alertState: AlertsState = { enabled: false, armed: false, error: '' };
+const setAlertState = (patch: Partial<AlertsState>) => { alertState = { ...alertState, ...patch }; alertListeners.forEach((l) => l()); };
+const subscribeAlerts = (l: () => void) => { alertListeners.add(l); return () => { alertListeners.delete(l); }; };
+const useAlertState = () => useSyncExternalStore(subscribeAlerts, () => alertState);
+const readStored = (key: string) => { try { return localStorage.getItem(key) === 'true'; } catch { return false; } };
+
+function useDisplayActor() {
   const hid = useHid();
   const me = useMe().data;
   const actor = hid ? householdActor(me, hid) : null;
-  if (!hid || actor?.kind !== 'device') return null;
-  return <DeviceSpokenAlerts key={`${hid}:${actor.deviceId}`} householdId={hid} deviceId={actor.deviceId} />;
+  return hid && actor?.kind === 'device' ? { hid, deviceId: actor.deviceId } : null;
+}
+
+/** Mount once in the display shell so alerts keep being read on every page and after the screen wakes. Never listens to the microphone. */
+export function SpokenAlertsRunner() {
+  const d = useDisplayActor();
+  return d ? <DeviceSpokenAlerts key={d.hid + ':' + d.deviceId} householdId={d.hid} deviceId={d.deviceId} /> : null;
 }
 
 function DeviceSpokenAlerts({ householdId: hid, deviceId }: { householdId: string; deviceId: string }) {
   const key = spokenAlertKey(hid, deviceId);
-  const [enabled, setEnabled] = useState(() => { try { return localStorage.getItem(key) === 'true'; } catch { return false; } });
-  const [armed, setArmed] = useState(false);
-  const [storageError, setStorageError] = useState('');
+  const { enabled, armed } = useAlertState();
   const tracker = useRef(new SpokenAlertTracker());
-  const speech = useReadAloud(key);
-  const { read, stop, busy, error } = speech;
+  const { read, stop, busy, error } = useReadAloud(key);
   const busyRef = useRef(false);
   busyRef.current = busy;
   const notifications = useQuery({
@@ -108,13 +118,36 @@ function DeviceSpokenAlerts({ householdId: hid, deviceId }: { householdId: strin
     },
     enabled: enabled && armed,
     refetchInterval: 15_000,
+    refetchIntervalInBackground: true,
     staleTime: 0,
     gcTime: 0,
     retry: false,
   });
 
   useEffect(() => {
-    const pause = () => { tracker.current.reset(); setArmed(false); stop(); };
+    setAlertState({ enabled: readStored(key), armed: false, error: '' });
+    return () => setAlertState({ enabled: false, armed: false, error: '' });
+  }, [key]);
+
+  useEffect(() => { tracker.current.reset(); }, [armed]);
+
+  // The native app speaks without a gesture, so it re-arms whenever the screen wakes or the network returns.
+  // Browsers block audio until the first tap on the page.
+  useEffect(() => {
+    if (!enabled || armed) return;
+    const arm = () => { if (!document.hidden && navigator.onLine !== false) setAlertState({ armed: true, error: '' }); };
+    if (isNativeApp()) {
+      if (!alertState.error) arm();
+      document.addEventListener('visibilitychange', arm);
+      window.addEventListener('online', arm);
+      return () => { document.removeEventListener('visibilitychange', arm); window.removeEventListener('online', arm); };
+    }
+    window.addEventListener('pointerdown', arm);
+    return () => window.removeEventListener('pointerdown', arm);
+  }, [enabled, armed]);
+
+  useEffect(() => {
+    const pause = () => { setAlertState({ armed: false }); stop(); };
     const visibility = () => { if (document.hidden) pause(); };
     window.addEventListener('offline', pause);
     document.addEventListener('visibilitychange', visibility);
@@ -122,8 +155,8 @@ function DeviceSpokenAlerts({ householdId: hid, deviceId }: { householdId: strin
   }, [stop]);
 
   useEffect(() => {
-    if (notifications.isError || error) { tracker.current.reset(); setArmed(false); stop(); }
-  }, [notifications.isError, error, stop]);
+    if (notifications.isError || error) { setAlertState({ armed: false, error: error || voiceError(notifications.error) }); stop(); }
+  }, [notifications.isError, notifications.error, error, stop]);
 
   useEffect(() => {
     if (!enabled || !armed || !notifications.data || notifications.isFetching) return;
@@ -131,23 +164,36 @@ function DeviceSpokenAlerts({ householdId: hid, deviceId }: { householdId: strin
     // Drop, rather than queue, arrivals while another read is in progress.
     if (fresh.length && !busyRef.current && !isSpeaking() && !isListening()) void read(() => notificationReading(fresh));
   }, [enabled, armed, notifications.data, notifications.dataUpdatedAt, notifications.isFetching, read]);
+  return null;
+}
 
+/** Settings control for the display-wide spoken alerts runner. */
+export function SpokenAlertsControl() {
+  const d = useDisplayActor();
+  return d ? <SpokenAlertsSettings key={d.hid + ':' + d.deviceId} householdId={d.hid} deviceId={d.deviceId} /> : null;
+}
+
+function SpokenAlertsSettings({ householdId: hid, deviceId }: { householdId: string; deviceId: string }) {
+  const key = spokenAlertKey(hid, deviceId);
+  const { enabled, armed, error } = useAlertState();
+  const [storageError, setStorageError] = useState('');
   const persist = (value: boolean) => {
     try { localStorage.setItem(key, String(value)); setStorageError(''); }
     catch { setStorageError('This browser could not save the setting. It applies only until this page closes.'); }
-    setEnabled(value);
+    setAlertState({ enabled: value, armed: value, error: '' });
+    if (!value) stopSpeaking();
   };
-  const pause = () => { setArmed(false); tracker.current.reset(); stop(); };
-  const enable = () => { persist(true); tracker.current.reset(); setArmed(true); void read(() => 'Spoken household alerts enabled. Only new alerts will be read.'); };
-
+  const enable = () => {
+    persist(true);
+    void speak('Spoken household alerts are on. New alerts and the daily summary will be read on every screen.').catch((e) => setAlertState({ error: voiceError(e) }));
+  };
   return <section aria-label="Spoken household alerts" className="space-y-2 rounded-xl border p-3">
-    <p className="text-sm font-semibold">Spoken household alerts: {enabled && armed ? 'on' : enabled ? 'paused' : 'off'}</p>
-    <p className="text-xs text-muted-foreground">Optional on this display only. Reads new household alerts, not personal inboxes. No microphone recording. Resume after reconnecting or returning to this screen.</p>
+    <p className="text-sm font-semibold">Spoken household alerts: {enabled && armed ? 'on' : enabled ? 'waiting' : 'off'}</p>
+    <p className="text-xs text-muted-foreground">On this display only, new household alerts, announcements and the daily summary are read aloud on every screen, including the photo screensaver. Personal inboxes are never read. The microphone is not used.{enabled && !armed ? ' Tap the screen to resume after the display wakes.' : ''}</p>
     <div className="flex flex-wrap gap-2">
       {(!enabled || !armed) && <Button size="sm" variant="outline" onClick={enable}>{enabled ? 'Resume spoken alerts' : 'Enable spoken alerts'}</Button>}
-      {armed && <Button size="sm" variant="outline" onClick={pause}>Stop spoken alerts</Button>}
-      {enabled && <Button size="sm" variant="outline" onClick={() => { persist(false); pause(); }}>Disable spoken alerts</Button>}
+      {enabled && <Button size="sm" variant="outline" onClick={() => persist(false)}>Disable spoken alerts</Button>}
     </div>
-    {(error || notifications.error || storageError) && <p role="alert" className="text-sm text-destructive">{error || (notifications.error ? voiceError(notifications.error) : storageError)}</p>}
+    {(error || storageError) && <p role="alert" className="text-sm text-destructive">{error || storageError}</p>}
   </section>;
 }

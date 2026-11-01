@@ -97,6 +97,68 @@ export function photosRouter() {
     },
   );
 
+  const avatarVersion = (url: string | null) => /\/photo\?v=([0-9a-f-]{36})$/.exec(url ?? '')?.[1] ?? null;
+  const avatarKey = (hid: string, memberId: string, v: string) => `households/${hid}/avatars/${memberId}/${v}.webp`;
+  const avatarUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
+
+  route(
+    m,
+    { method: 'post', path: '/members/:memberId/photo', summary: 'Upload a profile picture (multipart field "file")', tags: ['Members'], middleware: [requireCap('members.manage'), avatarUpload.single('file')] },
+    async (req) => {
+      const c = ctx(req);
+      const member = await prisma.householdMember.findFirst({ where: { id: req.params.memberId, householdId: c.householdId } });
+      if (!member) throw notFound('Member');
+      const f = req.file;
+      if (!f) throw new AppError(400, 'NO_FILES', 'Choose a photo');
+      let data: Buffer;
+      try {
+        // Re-encode: strips EXIF/GPS metadata, fixes orientation and crops to a square.
+        data = await sharp(f.buffer, { failOn: 'error' }).rotate().resize({ width: 512, height: 512, fit: 'cover', position: 'attention' }).webp({ quality: 82 }).toBuffer();
+      } catch {
+        throw new AppError(415, 'UNSUPPORTED_IMAGE', 'That file is not a supported image');
+      }
+      const v = randomUUID();
+      await storage().put(avatarKey(c.householdId, member.id, v), data, 'image/webp');
+      const avatarUrl = `/api/v1/households/${c.householdId}/members/${member.id}/photo?v=${v}`;
+      await prisma.householdMember.update({ where: { id: member.id }, data: { avatarUrl } });
+      const old = avatarVersion(member.avatarUrl);
+      if (old) await storage().remove(avatarKey(c.householdId, member.id, old)).catch(() => undefined);
+      await audit(req, { householdId: c.householdId, action: 'member.photo.updated', entityType: 'member', entityId: member.id });
+      realtime.publish(c.householdId, { type: 'members.changed' });
+      return { avatarUrl };
+    },
+  );
+
+  route(
+    m,
+    { method: 'delete', path: '/members/:memberId/photo', summary: 'Remove a profile picture', tags: ['Members'], middleware: [requireCap('members.manage')] },
+    async (req) => {
+      const c = ctx(req);
+      const member = await prisma.householdMember.findFirst({ where: { id: req.params.memberId, householdId: c.householdId } });
+      if (!member) throw notFound('Member');
+      await prisma.householdMember.update({ where: { id: member.id }, data: { avatarUrl: null } });
+      const old = avatarVersion(member.avatarUrl);
+      if (old) await storage().remove(avatarKey(c.householdId, member.id, old)).catch(() => undefined);
+      await audit(req, { householdId: c.householdId, action: 'member.photo.removed', entityType: 'member', entityId: member.id });
+      realtime.publish(c.householdId, { type: 'members.changed' });
+      return { avatarUrl: null };
+    },
+  );
+
+  router.get('/members/:memberId/photo', async (req, res, next) => {
+    try {
+      const c = ctx(req);
+      const member = await prisma.householdMember.findFirst({ where: { id: req.params.memberId, householdId: c.householdId } });
+      const v = avatarVersion(member?.avatarUrl ?? null);
+      const body = member && v ? await storage().get(avatarKey(c.householdId, member.id, v)) : null;
+      if (!body) throw notFound('Photo');
+      res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'private, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
+      res.send(body);
+    } catch (e) {
+      next(e);
+    }
+  });
+
   router.get('/photos/:photoId/file', async (req, res, next) => {
     try {
       const c = ctx(req);

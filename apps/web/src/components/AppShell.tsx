@@ -23,6 +23,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { Screensaver } from '@/features/photos';
+import { SpokenAlertsRunner } from '@/features/spokenAlerts';
 import { NotificationBell } from './NotificationBell';
 import { DeviceJoinPrompt } from '@/features/join';
 import { VoiceButton } from '@/features/voice';
@@ -130,6 +131,23 @@ export function PinDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   );
 }
 
+/** Keeps a wall display awake in browsers; the Android app also sets FLAG_KEEP_SCREEN_ON. */
+function useScreenWakeLock(active: boolean) {
+  useEffect(() => {
+    const nav = navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<{ release(): Promise<void> }> } };
+    if (!active || !nav.wakeLock) return;
+    let lock: { release(): Promise<void> } | null = null;
+    let cancelled = false;
+    const acquire = () => {
+      if (document.hidden || cancelled) return;
+      void nav.wakeLock!.request('screen').then((l) => { if (cancelled) void l.release(); else lock = l; }).catch(() => undefined);
+    };
+    acquire();
+    document.addEventListener('visibilitychange', acquire);
+    return () => { cancelled = true; document.removeEventListener('visibilitychange', acquire); void lock?.release().catch(() => undefined); };
+  }, [active]);
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { householdId, setHousehold, displayMode, setDisplayMode } = useUi();
   const me = useMe().data!;
@@ -145,6 +163,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const moreActive = NAV.filter((n) => !MOBILE_NAV.includes(n.to)).some((n) => pathname.startsWith(n.to));
   const kiosk = displayMode === 'kiosk' || isDevice;
+  useScreenWakeLock(isDevice);
 
   useEffect(() => {
     void pendingCount().then(setQueued);
@@ -399,6 +418,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </Dialog>
       {isDevice && <DeviceJoinPrompt />}
       {isDevice && householdId && <VoiceButton householdId={householdId} />}
+      {isDevice && <SpokenAlertsRunner />}
       <PinDialog open={pinOpen} onOpenChange={setPinOpen} />
       <Screensaver enabled={kiosk} idleMinutes={5} />
     </div>

@@ -86,7 +86,7 @@ export default function PhotosPage() {
                   <img src={p.thumbUrl} alt={p.caption ?? 'Family photo'} loading="lazy" className="w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" style={p.width && p.height ? { aspectRatio: `${p.width}/${p.height}` } : undefined} />
                 </button>
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
-                  {by ? <Avatar name={by.displayName} color={by.color} size={24} /> : <span />}
+                  {by ? <Avatar name={by.displayName} color={by.color} src={by.avatarUrl} size={24} /> : <span />}
                 </div>
                 <button onClick={() => toggleFav.mutate(p)} className={cn('absolute right-2 top-2 rounded-full bg-black/35 p-1.5 text-white backdrop-blur transition-opacity', p.isFavorite ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')} aria-label={p.isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
                   <Heart className={cn('h-4 w-4', p.isFavorite && 'fill-rose-500 text-rose-500')} />

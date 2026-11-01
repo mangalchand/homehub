@@ -6,7 +6,7 @@ import type { Me } from '@/lib/queries';
 import type { FeedNotification } from '@/lib/voice/household';
 import { api } from '@/lib/api';
 import { isListening, isSpeaking, speak, stopSpeaking } from '@/lib/voice/speech';
-import { SpokenAlertsControl, SpokenAlertTracker, spokenAlertKey, useReadAloud, NotificationsReadAloudButton, PointsReadAloudButton } from './spokenAlerts';
+import { SpokenAlertsControl, SpokenAlertsRunner, SpokenAlertTracker, spokenAlertKey, useReadAloud, NotificationsReadAloudButton, PointsReadAloudButton } from './spokenAlerts';
 
 const { state } = vi.hoisted(() => ({ state: { me: undefined as Me | undefined, hid: 'h', feed: [] as FeedNotification[], isSpeaking: false, isListening: false } }));
 vi.mock('@/lib/queries', () => ({ useMe: () => ({ data: state.me }), useHid: () => state.hid }));
@@ -16,7 +16,8 @@ vi.mock('@/lib/voice/speech', () => ({ speak: vi.fn().mockResolvedValue(undefine
 const notification = (id: string, options: Partial<FeedNotification> = {}): FeedNotification => ({ id, householdId: 'h', memberId: null, title: id, body: 'Details', type: 'announcement', data: {}, readAt: null, createdAt: new Date().toISOString(), ...options });
 const device = (): Me => ({ kind: 'device', device: { id: 'd', householdId: 'h', name: 'Kitchen' }, memberships: [], session: { id: 's', pinElevatedUntil: null } });
 const clients: QueryClient[] = [];
-function view(children = <SpokenAlertsControl />) {
+function DisplayAlerts() { return <><SpokenAlertsRunner /><SpokenAlertsControl /></>; }
+function view(children = <DisplayAlerts />) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }); clients.push(client);
   const wrap = () => <QueryClientProvider client={client}>{cloneElement(children)}</QueryClientProvider>;
   return { ...render(wrap()), update: wrap, client };
@@ -76,14 +77,16 @@ describe('new household alert tracking', () => {
 });
 
 describe('display spoken alerts opt in', () => {
-  it('defaults off and requires a user gesture even with the saved household/device opt-in', async () => {
+  it('with a saved opt-in, a browser waits for any tap on the page before polling, without replaying history', async () => {
     localStorage.setItem(spokenAlertKey('h', 'd'), 'true');
+    state.feed = [notification('Old history')];
     view();
-    expect(screen.getByText('Spoken household alerts: paused')).toBeInTheDocument();
+    expect(screen.getByText('Spoken household alerts: waiting')).toBeInTheDocument();
     expect(api).not.toHaveBeenCalled(); expect(speak).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Resume spoken alerts' }));
+    fireEvent.pointerDown(window);
     await waitFor(() => expect(api).toHaveBeenCalledWith('/api/v1/households/h/notifications'));
-    expect(speak).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Spoken household alerts: on')).toBeInTheDocument();
+    expect(speak).not.toHaveBeenCalled();
   });
   it('reads only NEW device-feed alerts, ignores private feeds, and does not overlap another reader', async () => {
     state.feed = [notification('Initial history', { createdAt: new Date(Date.now() - 1000).toISOString() })];
@@ -120,7 +123,7 @@ describe('display spoken alerts opt in', () => {
     await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
     expect(localStorage.getItem(spokenAlertKey('h', 'd'))).toBe('true');
     fireEvent(window, new Event('offline'));
-    expect(screen.getByText('Spoken household alerts: paused')).toBeInTheDocument();
+    expect(screen.getByText('Spoken household alerts: waiting')).toBeInTheDocument();
     expect(stopSpeaking).toHaveBeenCalled();
     fireEvent(window, new Event('online'));
     expect(screen.getByRole('button', { name: 'Resume spoken alerts' })).toBeInTheDocument();
