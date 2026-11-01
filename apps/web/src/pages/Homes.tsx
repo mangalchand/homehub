@@ -39,6 +39,7 @@ export function HomesCard() {
         <div className="min-w-0 flex-1"><p className="break-words font-semibold">{m.householdName}</p><p className="text-xs text-muted-foreground">Already a member · {m.role.replaceAll('_', ' ').toLowerCase()}</p></div>
         <Button variant={m.householdId === householdId ? 'secondary' : 'outline'} onClick={() => open(m.householdId)}>{m.householdId === householdId && <Check />} Open home</Button>
       </div>)}
+      {(me.data.pendingHouseholds ?? []).map((h) => <div key={h.householdId} className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300/50 bg-amber-50/50 p-4"><div className="min-w-0 flex-1"><p className="break-words font-semibold">{h.householdName}</p><p className="text-sm text-muted-foreground">{h.approvalStatus === 'REJECTED' ? 'Not approved by the FamilyHub owner' : 'Waiting for approval by the FamilyHub owner'}</p></div><Badge>{h.approvalStatus === 'REJECTED' ? 'Not approved' : 'Pending approval'}</Badge></div>)}
       {pending.map((r) => <div key={r.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-primary/20 p-4"><div className="min-w-0 flex-1"><p className="break-words font-semibold">{r.householdName}</p><p className="text-sm text-muted-foreground">{r.requesterVerified ? 'Waiting for household approval' : 'Confirm your emailed code to join'}</p></div><Button variant="outline" asChild><Link to={`/join/${r.id}`}>View request</Link></Button></div>)}
       {invitations.isPending && <Spinner />}
       {invitations.isError && <p role="alert" className="text-sm text-destructive">Couldn’t load invitations. Refresh to try again.</p>}
@@ -54,5 +55,5 @@ export function HomesCard() {
 export default function HomesPage() {
   const me = useMe().data;
   const logout = async () => { await api('/api/v1/auth/logout', { method: 'POST' }); queryClient.clear(); window.location.href = '/login'; };
-  return <div className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6"><PageHeader title="Choose your home" subtitle="Your family, wherever you call home." actions={!me?.memberships.length ? <Button variant="outline" onClick={() => void logout()}>Sign out</Button> : undefined} /><HomesCard />{!me?.memberships.length && <Button variant="outline" asChild><Link to="/create-home">Create a new home instead</Link></Button>}</div>;
+  return <div className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6"><PageHeader title="Choose your home" subtitle="Your family, wherever you call home." actions={!me?.memberships.length ? <Button variant="outline" onClick={() => void logout()}>Sign out</Button> : undefined} /><HomesCard />{!me?.memberships.length && !me?.pendingHouseholds?.some((h) => h.approvalStatus === 'PENDING') && <Button variant="outline" asChild><Link to="/create-home">Create a new home instead</Link></Button>}</div>;
 }

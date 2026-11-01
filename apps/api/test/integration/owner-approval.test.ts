@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../../src/config.js';
 import { prisma } from '../../src/db.js';
 import { emailAdapter, type EmailMessage } from '../../src/lib/email.js';
@@ -61,19 +61,26 @@ describe('owner approval', () => {
     expect((await agent.get('/api/v1/households/' + hid + '/members')).status).toBe(200);
   });
 
-  it('lets a pending requester resend the approval email, replacing the old link', async () => {
-    const { agent } = await register('ravi@example.com');
-    const first = lastLink()!;
-    const csrf = (await agent.get('/api/v1/auth/csrf')).body.csrfToken as string;
-    const r = await agent.post('/api/v1/approval-requests/resend').set('x-csrf-token', csrf);
-    expect(r.status).toBe(200);
-    expect(r.body.requested).toBe(1);
-    const second = lastLink()!;
-    expect(second).not.toBe(first);
-    expect((await request(app).post('/api/v1/approvals/' + first + '/approve')).status).toBe(404);
-    expect((await agent.post('/api/v1/approval-requests/resend').set('x-csrf-token', csrf)).status).toBe(429);
-    expect((await request(app).post('/api/v1/approvals/' + second + '/approve')).status).toBe(200);
-    expect((await agent.get('/api/v1/auth/me')).body.user.approvalStatus).toBe('APPROVED');
+  it('resends approval emails, keeping the earlier link when sending fails', async () => {
+    const send = '/api/v1/approval-requests/resend';
+    const a = await register('ravi@example.com');
+    const firstA = lastLink()!;
+    const csrfA = (await a.agent.get('/api/v1/auth/csrf')).body.csrfToken as string;
+    const failed = await a.agent.post(send).set('x-csrf-token', csrfA);
+    expect(failed.body).toEqual({ requested: 1, sent: 0 });
+    expect((await a.agent.post(send).set('x-csrf-token', csrfA)).status).toBe(429);
+    expect((await request(app).post('/api/v1/approvals/' + firstA + '/approve')).status).toBe(200);
+
+    const b = await register('meena@example.com');
+    const firstB = lastLink()!;
+    const csrfB = (await b.agent.get('/api/v1/auth/csrf')).body.csrfToken as string;
+    const outbox = (emailAdapter as unknown as { outbox: unknown[] }).outbox;
+    vi.spyOn(emailAdapter, 'send').mockImplementationOnce(async (m) => { outbox.push(m); return true; });
+    expect((await b.agent.post(send).set('x-csrf-token', csrfB)).body).toEqual({ requested: 1, sent: 1 });
+    const secondB = lastLink()!;
+    expect(secondB).not.toBe(firstB);
+    expect((await request(app).post('/api/v1/approvals/' + firstB + '/approve')).status).toBe(404);
+    expect((await request(app).post('/api/v1/approvals/' + secondB + '/approve')).status).toBe(200);
   });
 
   it('signs out rejected accounts and auto-approves the owner', async () => {
