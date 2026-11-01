@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { queryClient } from '@/lib/queryClient';
@@ -11,6 +12,7 @@ const ZONES = Intl.supportedValuesOf?.('timeZone') ?? ['UTC'];
 
 export function OnboardingPage() {
   const setHousehold = useUi((s) => s.setHousehold);
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [busy, setBusy] = useState(false);
@@ -18,9 +20,11 @@ export function OnboardingPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      const h = await api<{ id: string }>('/api/v1/households', { method: 'POST', body: { name, timezone } });
-      setHousehold(h.id);
+      const h = await api<{ household: { id: string }; approvalStatus?: string }>('/api/v1/households', { method: 'POST', body: { name, timezone } });
+      if (h.approvalStatus === 'PENDING') toast.success('Your new home was sent to the FamilyHub owner for approval');
+      else setHousehold(h.household.id);
       await queryClient.invalidateQueries({ queryKey: ['me'] });
+      navigate('/');
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
