@@ -18,6 +18,8 @@ export interface AuthInfo {
   pinElevatedUntil: Date | null;
   /** False until a personal account confirms its email with a code. Always true for devices. */
   emailVerified: boolean;
+  /** False while the platform owner has not approved a new personal account. Always true for devices. */
+  approved: boolean;
 }
 
 declare global {
@@ -73,7 +75,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     if (!token) return next();
     const session = await prisma.session.findUnique({
       where: { tokenHash: sha256(token) },
-      include: { device: { select: { revokedAt: true } }, user: { select: { emailVerifiedAt: true } } },
+      include: { device: { select: { revokedAt: true } }, user: { select: { emailVerifiedAt: true, approvalStatus: true } } },
     });
     const now = new Date();
     if (!session || session.revokedAt || session.expiresAt < now || session.device?.revokedAt) return next();
@@ -84,6 +86,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       deviceHouseholdId: session.householdId,
       pinElevatedUntil: session.pinElevatedUntil,
       emailVerified: !session.userId || Boolean(session.user?.emailVerifiedAt),
+      approved: !session.userId || session.user?.approvalStatus === 'APPROVED',
     };
     if (now.getTime() - session.lastSeenAt.getTime() > 5 * 60000) {
       // Sliding expiry: active sessions renew so people (and wall displays) are never signed out mid-use.
@@ -109,6 +112,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
 }
 
 export const emailNotVerified = () => new AppError(403, 'EMAIL_NOT_VERIFIED', 'Confirm your email with the code we sent before continuing');
+export const pendingApproval = () => new AppError(403, 'ACCOUNT_PENDING_APPROVAL', 'Your FamilyHub account is waiting for approval by the FamilyHub owner');
 
 /** Personal account, even if the email is not confirmed yet (used by the verification endpoints). */
 export function requireSignedInUser(req: Request, _res: Response, next: NextFunction) {
@@ -122,6 +126,7 @@ export function requireUser(req: Request, res: Response, next: NextFunction) {
   requireSignedInUser(req, res, (err?: unknown) => {
     if (err) return next(err);
     if (!req.auth!.emailVerified) return next(emailNotVerified());
+    if (!req.auth!.approved) return next(pendingApproval());
     next();
   });
 }

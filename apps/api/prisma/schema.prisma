@@ -190,6 +190,8 @@ model User {
   displayName     String    @map("display_name")
   googleSubject   String?   @unique @map("google_subject")
   emailVerifiedAt DateTime? @map("email_verified_at")
+  approvalStatus  String    @default("APPROVED") @map("approval_status")
+  approvalTokenHash String? @unique @map("approval_token_hash")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
@@ -215,6 +217,8 @@ model Household {
   weekStartsOn Int      @default(0) @map("week_starts_on")
   pinHash      String?  @map("pin_hash")
   settings     Json     @default("{}")
+  approvalStatus String @default("APPROVED") @map("approval_status")
+  approvalTokenHash String? @unique @map("approval_token_hash")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 

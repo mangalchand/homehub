@@ -2,8 +2,10 @@ import type { NextFunction, Request, Response } from 'express';
 import type { Household, HouseholdMember } from '@prisma/client';
 import { can, type Actor, type Capability } from '@familyhub/shared';
 import { prisma } from '../db.js';
-import { emailNotVerified } from './session.js';
-import { forbidden, notFound, unauthorized } from '../lib/errors.js';
+import { emailNotVerified, pendingApproval } from './session.js';
+import { AppError, forbidden, notFound, unauthorized } from '../lib/errors.js';
+
+const householdPending = () => new AppError(403, 'HOUSEHOLD_PENDING_APPROVAL', 'This home is waiting for approval by the FamilyHub owner');
 
 export interface HouseholdContext {
   householdId: string;
@@ -36,6 +38,7 @@ export async function householdContext(req: Request, _res: Response, next: NextF
 
     if (auth.deviceId) {
       if (auth.deviceHouseholdId !== householdId) throw notFound('Household');
+      if (household.approvalStatus !== 'APPROVED') throw householdPending();
       req.ctx = {
         householdId,
         household,
@@ -50,10 +53,12 @@ export async function householdContext(req: Request, _res: Response, next: NextF
     }
 
     if (!auth.emailVerified) throw emailNotVerified();
+    if (!auth.approved) throw pendingApproval();
     const member = await prisma.householdMember.findFirst({
       where: { householdId, userId: auth.userId!, isActive: true },
     });
     if (!member) throw notFound('Household');
+    if (household.approvalStatus !== 'APPROVED') throw householdPending();
     if (member.accessExpiresAt && member.accessExpiresAt < new Date()) {
       throw forbidden('Your guest access to this household has expired');
     }

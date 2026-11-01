@@ -109,6 +109,12 @@ export function LoginPage({ initialMode = 'login', initialEmail = '', banner }: 
             )}
           </CardContent>
         </Card>
+        {mode === 'register' && <p className="mt-4 text-center text-sm leading-relaxed text-muted-foreground">By creating an account you agree to the <a className="font-medium text-primary" href="/terms">Terms of Use</a> and <a className="font-medium text-primary" href="/privacy">Privacy Policy</a>. New accounts are approved by the FamilyHub owner.</p>}
+        <nav className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
+          <a className="hover:text-foreground" href="/install">Get the Android app</a>
+          <a className="hover:text-foreground" href="/privacy">Privacy</a>
+          <a className="hover:text-foreground" href="/terms">Terms</a>
+        </nav>
       </div>
     </div>
   );
