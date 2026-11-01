@@ -10,6 +10,7 @@ const INVALIDATIONS: Record<string, string[][]> = {
   tasks: [['tasks'], ['approvals']],
   points: [['points'], ['approvals'], ['points-history']],
   rewards: [['rewards']],
+  meals: [['meals']],
   lists: [['lists']],
   photos: [['photos']],
   announcements: [['announcements']],

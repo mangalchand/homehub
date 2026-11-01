@@ -7,6 +7,9 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { Toaster } from 'sonner';
 import { registerSW } from 'virtual:pwa-register';
 import { persister, queryClient } from './lib/queryClient';
+import { setUnauthorizedHandler } from './lib/api';
+
+setUnauthorizedHandler(() => void queryClient.invalidateQueries({ queryKey: ['me'] }));
 import { App } from './App';
 import './index.css';
 

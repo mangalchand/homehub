@@ -80,6 +80,7 @@ export interface Reward {
   title: string;
   description: string | null;
   icon: string | null;
+  imageUrl?: string | null;
   cost: number;
   isActive: boolean;
 }

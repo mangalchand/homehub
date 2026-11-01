@@ -261,6 +261,20 @@ export const createRewardSchema = z.object({
 });
 export const updateRewardSchema = createRewardSchema.partial();
 export const redeemRewardSchema = z.object({ memberId: z.string().uuid() });
+
+// ── Meal planning ──
+export const MEAL_SLOTS = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'] as const;
+export type MealSlotName = (typeof MEAL_SLOTS)[number];
+export const createMealPlanSchema = z
+  .object({
+    date: z.string().date(),
+    slot: z.enum(MEAL_SLOTS),
+    title: z.string().trim().min(1).max(120),
+    notes: z.string().trim().max(500).nullable().optional(),
+  })
+  .strict();
+export const updateMealPlanSchema = createMealPlanSchema.partial().strict();
+export const mealRangeQuerySchema = z.object({ start: z.string().date(), end: z.string().date() });
 export const adjustPointsSchema = z.object({
   memberId: z.string().uuid(),
   points: z
