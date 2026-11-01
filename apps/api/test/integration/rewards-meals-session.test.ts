@@ -41,6 +41,7 @@ describe('reward pictures', () => {
 
     const again = await owner.upload(base);
     expect(again.body.imageUrl).not.toBe(up.body.imageUrl);
+    expect((await owner.get(up.body.imageUrl)).status).toBe(404);
     expect((await owner.del(base)).body.imageUrl).toBeNull();
     expect((await owner.get(again.body.imageUrl)).status).toBe(404);
   });
