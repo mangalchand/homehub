@@ -83,7 +83,7 @@ export function MemberChoreColumn({ member, tasks, points, compact, onEdit }: { 
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex items-center gap-2">
-        <Avatar name={member.displayName} color={member.color} size={compact ? 32 : 40} />
+        <Avatar name={member.displayName} color={member.color} src={member.avatarUrl} size={compact ? 32 : 40} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{member.displayName}</p>
           <p className="text-xs text-muted-foreground">

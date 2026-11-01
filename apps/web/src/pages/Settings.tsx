@@ -33,6 +33,7 @@ import { Badge, PageHeader, Switch } from '@/components/ui/misc';
 import { NotificationsSection } from '@/features/notificationSettings';
 import { SafetyLocationSetting } from '@/features/safety';
 import { SpokenAlertsControl } from '@/features/spokenAlerts';
+import { AlexaSection } from '@/features/alexa';
 
 interface Provider {
   key: string;
@@ -530,6 +531,7 @@ export default function SettingsPage() {
       <NotificationsSection />
       <SafetyLocationSetting />
       <SpokenAlertsControl />
+      {!isDevice && <AlexaSection />}
       {!isDevice && <CalendarsSection />}
       <DevicesSection />
       {role === 'OWNER' && !isDevice && <SecuritySection />}

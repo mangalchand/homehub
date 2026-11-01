@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Copy, MessageCircle, Plus, Share2, UserMinus, Users } from 'lucide-react';
+import { Camera, Copy, MessageCircle, Plus, Share2, UserMinus, Users } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { assignableRoles, DEVICE_ASSIGNABLE_ROLES, type MemberDTO, type MemberRole } from '@familyhub/shared';
 import { api, hh } from '@/lib/api';
-import { useHhMutation, useMembers, usePoints, useRole } from '@/lib/queries';
+import { useHhMutation, useHid, useMembers, usePoints, useRole } from '@/lib/queries';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
@@ -13,6 +14,33 @@ import { JoinRequestsCard } from '@/features/join';
 
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#8b5cf6', '#ef4444', '#14b8a6'];
 const ROLE_LABEL: Record<string, string> = { OWNER: 'Owner', ADULT_ADMIN: 'Parent (admin)', ADULT: 'Adult', CHILD: 'Child', GUEST: 'Guest / caregiver' };
+
+function MemberPhoto({ member }: { member: MemberDTO }) {
+  const { isAdmin } = useRole();
+  const hid = useHid()!;
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [src, setSrc] = useState(member.avatarUrl);
+  const run = async (formData?: FormData) => {
+    setBusy(true);
+    try {
+      const r = await api<{ avatarUrl: string | null }>(hh(hid, `/members/${member.id}/photo`), formData ? { method: 'POST', formData } : { method: 'DELETE' });
+      setSrc(r.avatarUrl);
+      void qc.invalidateQueries();
+      toast.success(formData ? 'Profile picture updated' : 'Profile picture removed');
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  };
+  return <div className="mb-4 flex items-center gap-4">
+    <Avatar name={member.displayName} color={member.color} src={src} size={72} />
+    {isAdmin && <div className="flex flex-wrap gap-2">
+      <label className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted [&_svg]:size-4 ${busy ? 'pointer-events-none opacity-60' : ''}`}>
+        <Camera />{src ? 'Change picture' : 'Add picture'}
+        <input type="file" accept="image/*" className="sr-only" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) { const fd = new FormData(); fd.append('file', file); void run(fd); } }} />
+      </label>
+      {src && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void run()}>Remove picture</Button>}
+    </div>}
+  </div>;
+}
 
 function MemberDialog({ member, inviteOnly = false, onClose }: { member: MemberDTO | null; inviteOnly?: boolean; onClose: () => void }) {
   const { role, isDevice } = useRole();
@@ -48,6 +76,7 @@ function MemberDialog({ member, inviteOnly = false, onClose }: { member: MemberD
   }
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()} title={member ? `Edit ${member.displayName}` : inviteOnly ? 'Invite by email' : 'Add family member'} description={inviteOnly ? 'Already have an account? They can sign in and choose this home. New members can create an account. Both need the join code and household approval.' : 'Profiles don’t need an email. Invite someone to give them their own login.'}>
+      {member && !inviteOnly && <MemberPhoto member={member} />}
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (inviteOnly) return sendInvite(); save.mutate(undefined, { onSuccess: (r) => (!member && email && r?.id ? sendInvite(r.id) : onClose()), onError: (er) => toast.error((er as Error).message) }); }}>
         {!inviteOnly && <div className="grid grid-cols-2 gap-3">
           <Field label="First name"><Input value={f.firstName} onChange={(e) => setF({ ...f, firstName: e.target.value })} required autoFocus /></Field>
@@ -86,7 +115,7 @@ export default function FamilyPage() {
           {members.map((m) => (
             <Card key={m.id} className={isAdmin ? 'cursor-pointer transition-shadow hover:shadow-md' : ''} onClick={() => isAdmin && setEditing(m)}>
               <CardContent className="flex items-center gap-4 p-4">
-                <Avatar name={m.displayName} color={m.color} size={48} />
+                <Avatar name={m.displayName} color={m.color} src={m.avatarUrl} size={48} />
                 <div className="min-w-0 flex-1">
                   <p className="text-[17px] font-semibold leading-snug">{m.displayName}</p>
                   <div className="mt-1 flex flex-wrap gap-1.5"><Badge tone="muted">{ROLE_LABEL[m.role]}</Badge>{m.hasLogin && <Badge tone="success">Has login</Badge>}{!m.isActive && <Badge tone="danger">Inactive</Badge>}</div>

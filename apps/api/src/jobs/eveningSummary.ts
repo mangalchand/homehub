@@ -124,10 +124,21 @@ export async function buildEveningSummary(household: Pick<Household, 'id' | 'nam
     totalAvailable += balance.available;
     return `- ${clean(m.displayName)}: earned today ${today}; earned total ${lifetime}; balance ${balance.balance}; available ${balance.available}`;
   });
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const topPoints = members.slice(0, 6).map((m) => `${clean(m.displayName)} ${balances.get(m.id)?.available ?? 0}`).join(', ');
+  const spoken = [
+    `Good evening, ${clean(household.name).slice(0, 80)}. Here is today's summary.`,
+    taskLines.length || choreLines.length
+      ? `There ${taskLines.length === 1 ? 'is' : 'are'} ${plural(taskLines.length, 'pending task')} and ${plural(choreLines.length, 'chore')} still to do${overdue ? `, ${overdue} overdue` : ''}.`
+      : 'All tasks and chores are done. Well done, everyone!',
+    `${plural(totalToday, 'point')} earned today.`,
+    members.length ? `Points available: ${topPoints}${members.length > 6 ? `, and ${members.length - 6} more` : ''}.` : '',
+  ].filter(Boolean).join(' ');
   return dailySummaryPayloadSchema.parse({
     title: `Daily household summary — ${date}`,
     generatedAt: now.toISOString(),
     body: [
+      spoken,
       `${clean(household.name).slice(0, 200)} · ${date} · ${household.timezone}`,
       `Totals: ${taskLines.length} pending one-off tasks; ${choreLines.length} due/overdue chore occurrences (${overdue} overdue); ${members.length} active, unexpired members.`,
       `Points totals: ${totalToday} earned today; ${totalEarned} earned total; ${totalAvailable} available.`,

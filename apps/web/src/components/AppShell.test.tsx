@@ -22,7 +22,7 @@ vi.mock('@/features/photos', () => ({ Screensaver: () => null }));
 vi.mock('@/features/join', () => ({ DeviceJoinPrompt: () => null }));
 vi.mock('@/features/voice', () => ({ VoiceButton: () => null }));
 vi.mock('@/features/safety', () => ({ SafetyEntry: () => <button>Panic / SOS</button> }));
-vi.mock('@/features/spokenAlerts', () => ({ SpokenAlertsControl: () => null }));
+vi.mock('@/features/spokenAlerts', () => ({ SpokenAlertsControl: () => null, SpokenAlertsRunner: () => null }));
 vi.mock('./NotificationBell', () => ({ NotificationBell: () => null }));
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router-dom')>()),

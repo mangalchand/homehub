@@ -201,6 +201,8 @@ model User {
   auditLogs       AuditLog[]
   emailCodes      EmailCode[]
   joinRequests    JoinRequest[]
+  alexaAuthCodes  AlexaAuthCode[]
+  alexaGrants     AlexaGrant[]
 
   @@map("users")
 }
@@ -254,6 +256,8 @@ model Household {
   attachments          Attachment[]
   featureSettings      HouseholdFeatureSettings?
   dailySummaryRuns     DailySummaryRun[]
+  alexaAuthCodes       AlexaAuthCode[]
+  alexaGrants          AlexaGrant[]
 
   @@map("households")
 }
@@ -1357,4 +1361,40 @@ model JoinRequest {
   @@index([householdId])
   @@index([userId])
   @@map("join_requests")
+}
+
+model AlexaAuthCode {
+  id            String    @id @default(uuid()) @db.Uuid
+  codeHash      String    @unique @map("code_hash")
+  userId        String    @map("user_id") @db.Uuid
+  householdId   String    @map("household_id") @db.Uuid
+  redirectUri   String    @map("redirect_uri")
+  codeChallenge String?   @map("code_challenge")
+  expiresAt     DateTime  @map("expires_at")
+  usedAt        DateTime? @map("used_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("alexa_auth_codes")
+}
+
+model AlexaGrant {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  householdId      String    @map("household_id") @db.Uuid
+  accessTokenHash  String    @unique @map("access_token_hash")
+  accessExpiresAt  DateTime  @map("access_expires_at")
+  refreshTokenHash String    @unique @map("refresh_token_hash")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  lastUsedAt       DateTime? @map("last_used_at")
+  revokedAt        DateTime? @map("revoked_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@index([householdId, userId])
+  @@map("alexa_grants")
 }

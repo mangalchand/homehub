@@ -60,7 +60,7 @@ function EventEditor({ draft, onClose, calendars, tz }: { draft: Draft; onClose:
         <Field label="Repeat"><Select value={d.rrule} onChange={(e) => setD({ ...d, rrule: e.target.value })} disabled={isRecurring && scope === 'this'}>{REPEAT.map(([v, l]) => <option key={v} value={v}>{l}</option>)}{d.rrule && !REPEAT.some(([v]) => v === d.rrule) && <option value={d.rrule}>Custom</option>}</Select></Field>
         <Field label="Reminder"><Select value={d.reminder} onChange={(e) => setD({ ...d, reminder: e.target.value })}><option value="">None</option><option value="10">10 min before</option><option value="30">30 min before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></Select></Field>
       </div>
-      <Field label="Who"><div className="flex flex-wrap gap-2">{members.map((m) => { const on = d.memberIds.includes(m.id); return <button type="button" key={m.id} onClick={() => setD({ ...d, memberIds: on ? d.memberIds.filter((x) => x !== m.id) : [...d.memberIds, m.id] })} className={cn('flex items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-sm', on ? 'border-primary bg-primary/10' : 'opacity-60')}><Avatar name={m.displayName} color={m.color} size={22} />{m.displayName}</button>; })}</div></Field>
+      <Field label="Who"><div className="flex flex-wrap gap-2">{members.map((m) => { const on = d.memberIds.includes(m.id); return <button type="button" key={m.id} onClick={() => setD({ ...d, memberIds: on ? d.memberIds.filter((x) => x !== m.id) : [...d.memberIds, m.id] })} className={cn('flex items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-sm', on ? 'border-primary bg-primary/10' : 'opacity-60')}><Avatar name={m.displayName} color={m.color} src={m.avatarUrl} size={22} />{m.displayName}</button>; })}</div></Field>
       <Field label="Location"><Input value={d.location} onChange={(e) => setD({ ...d, location: e.target.value })} /></Field>
       <Field label="Notes"><Textarea value={d.description} onChange={(e) => setD({ ...d, description: e.target.value })} /></Field>
       <label className="flex items-center justify-between text-sm">Private (others see “Busy”) <Switch checked={d.isPrivate} onCheckedChange={(v) => setD({ ...d, isPrivate: v })} /></label>
@@ -85,7 +85,7 @@ function EventDetails({ occ, cal, onEdit, tz }: { occ: EventOccurrenceDTO; cal?:
       {occ.isRecurring && <p className="flex items-center gap-2"><Repeat className="h-4 w-4" /> Repeats</p>}
       {occ.location && <p className="flex items-center gap-2"><MapPin className="h-4 w-4" /> {occ.location}</p>}
       {occ.description && <p className="whitespace-pre-wrap">{occ.description}</p>}
-      <div className="flex flex-wrap gap-2">{occ.memberIds.map((id) => { const m = members.find((x) => x.id === id); return m ? <span key={id} className="flex items-center gap-1.5"><Avatar name={m.displayName} color={m.color} size={22} />{m.displayName}</span> : null; })}</div>
+      <div className="flex flex-wrap gap-2">{occ.memberIds.map((id) => { const m = members.find((x) => x.id === id); return m ? <span key={id} className="flex items-center gap-1.5"><Avatar name={m.displayName} color={m.color} src={m.avatarUrl} size={22} />{m.displayName}</span> : null; })}</div>
       <p className="flex items-center gap-2 text-muted-foreground"><span className="h-3 w-3 rounded-full" style={{ background: cal?.color ?? occ.color }} />{cal?.name}</p>
       {occ.syncState !== 'SYNCED' && occ.syncState !== 'LOCAL' && (
         <div className="flex items-center gap-2 rounded-xl bg-amber-500/10 p-2.5 text-amber-800 dark:text-amber-300">
@@ -138,7 +138,7 @@ export default function CalendarPage() {
         <Card className="min-w-0 flex-1"><CardContent className="flex flex-wrap items-center gap-1 p-2">
           {members.map((m) => (
             <button key={m.id} onClick={() => toggleMember(m.id)} className={cn('flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-transparent px-1 py-1 pr-3 text-sm font-medium hover:bg-muted', memberFilter.includes(m.id) && 'border-primary/30 bg-primary/5', memberFilter.length && !memberFilter.includes(m.id) && 'opacity-40')}>
-              <Avatar name={m.displayName} color={m.color} size={24} /> {m.displayName}
+              <Avatar name={m.displayName} color={m.color} src={m.avatarUrl} size={24} /> {m.displayName}
             </button>
           ))}
           {memberFilter.length > 0 && <button onClick={clearMemberFilter} className="shrink-0 whitespace-nowrap px-1 text-xs text-primary">Show everyone</button>}

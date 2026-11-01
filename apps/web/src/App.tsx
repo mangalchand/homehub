@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
+import { AlexaLinkPage, pendingAlexaLink, rememberAlexaLink } from '@/features/alexa';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ApiRequestError } from './lib/api';
@@ -72,6 +73,7 @@ export function App() {
     else if (me.data && !ms.length && householdId) setHousehold(null);
   }, [me.data, householdId, setHousehold]);
 
+  if (loc.pathname === '/alexa/link') rememberAlexaLink(loc.search);
   if (me.isPending) return <Loading />;
   const unauth = me.error instanceof ApiRequestError && me.error.status === 401;
   if (unauth || !me.data) {
@@ -87,6 +89,7 @@ export function App() {
     );
   }
   if (me.data.kind === 'user' && me.data.user && !me.data.user.emailVerified) return <VerifyEmailPage email={me.data.user.email} />;
+  if (me.data.kind === 'user' && pendingAlexaLink()) return <AlexaLinkPage />;
   if (loc.pathname.startsWith('/invite/')) return <Routes><Route path="/invite/:token" element={<AcceptInvite />} /></Routes>;
   if (pendingInvite()) return <AcceptInvite />;
   const joins = me.data.joinRequests ?? [];

@@ -48,7 +48,7 @@ export function announcementReading(items: Announcement[]) {
 export function notificationReading(items: AppNotification[]) {
   const unread = items.filter((n) => !n.readAt);
   if (!unread.length) return 'There are no unread notifications.';
-  return `${unread.length} unread ${unread.length === 1 ? 'notification' : 'notifications'}. ${join(unread.slice(0, 5).map((n) => `${n.title}${n.body ? `. ${n.body}` : ''}`))}${remaining(unread.length, 5)}.`;
+  return `${unread.length} unread ${unread.length === 1 ? 'notification' : 'notifications'}. ${join(unread.slice(0, 5).map((n) => n.type === 'summary.daily' ? (n.body ?? '').split('\n\n')[0] || n.title : `${n.title}${n.body ? `. ${n.body}` : ''}`))}${remaining(unread.length, 5)}.`;
 }
 
 export function pointsReading(members: MemberDTO[], points: Points[], memberId: string) {

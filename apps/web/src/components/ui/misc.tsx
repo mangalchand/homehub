@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import * as SwitchPrimitive from '@radix-ui/react-switch';
 import type { HTMLAttributes, ReactNode } from 'react';
 import { cn, contrastText, initials } from '@/lib/utils';
@@ -19,7 +20,11 @@ export const Badge = ({ className, tone = 'default', ...p }: HTMLAttributes<HTML
   />
 );
 
-export function Avatar({ name, color, size = 36, className }: { name: string; color: string; size?: number; className?: string }) {
+export function Avatar({ name, color, size = 36, className, src }: { name: string; color: string; size?: number; className?: string; src?: string | null }) {
+  const [failed, setFailed] = useState<string | null>(null);
+  if (src && failed !== src) {
+    return <img src={src} alt={name} title={name} width={size} height={size} loading="lazy" onError={() => setFailed(src)} className={cn('shrink-0 select-none rounded-full object-cover ring-2 ring-card', className)} style={{ width: size, height: size, background: color }} />;
+  }
   return (
     <span
       className={cn('inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold ring-2 ring-card', className)}

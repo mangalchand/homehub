@@ -48,6 +48,9 @@ const schema = z.object({
   WHATSAPP_TEMPLATE_LANG: z.string().default('en_US'),
   /** Firebase service-account JSON for native Android push (FCM). Empty = disabled. */
   FIREBASE_SERVICE_ACCOUNT_FILE: z.string().optional().default(''),
+  ALEXA_CLIENT_ID: z.string().optional().default(''),
+  ALEXA_CLIENT_SECRET: z.string().optional().default(''),
+  ALEXA_SKILL_ID: z.string().optional().default(''),
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   UPLOAD_DIR: z.string().default('./data/uploads'),
   S3_BUCKET: z.string().optional().default(''),

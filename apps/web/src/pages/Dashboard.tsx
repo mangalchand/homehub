@@ -72,7 +72,7 @@ function EventRow({ e, members, tz }: { e: EventOccurrenceDTO; members: MemberDT
       <div className="flex -space-x-1.5">
         {e.memberIds.slice(0, 4).map((id) => {
           const m = members.find((x) => x.id === id);
-          return m ? <Avatar key={id} name={m.displayName} color={m.color} size={24} /> : null;
+          return m ? <Avatar key={id} name={m.displayName} color={m.color} src={m.avatarUrl} size={24} /> : null;
         })}
       </div>
     </div>
@@ -271,7 +271,7 @@ function BirthdaysWidget({ members }: { members: MemberDTO[] }) {
       <CardContent className="space-y-2">
         {upcoming.map(({ m, next, age }) => (
           <div key={m.id} className="flex items-center gap-3">
-            <Avatar name={m.displayName} color={m.color} size={30} />
+            <Avatar name={m.displayName} color={m.color} src={m.avatarUrl} size={30} />
             <p className="min-w-0 flex-1 text-sm">
               <b className="font-semibold">{m.displayName}</b> turns {age}
             </p>

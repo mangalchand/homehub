@@ -124,7 +124,7 @@ function TaskDialog({
                     on ? 'border-primary bg-primary/10' : 'opacity-70',
                   )}
                 >
-                  <Avatar name={m.displayName} color={m.color} size={24} /> {m.displayName}
+                  <Avatar name={m.displayName} color={m.color} src={m.avatarUrl} size={24} /> {m.displayName}
                 </button>
               );
             })}
@@ -265,7 +265,7 @@ function TaskRow({ t, canManage, onEdit }: { t: Task; canManage: boolean; onEdit
           <span className="flex -space-x-1.5">
             {t.memberIds.map((id) => {
               const m = members.find((x) => x.id === id);
-              return m ? <Avatar key={id} name={m.displayName} color={m.color} size={22} /> : null;
+              return m ? <Avatar key={id} name={m.displayName} color={m.color} src={m.avatarUrl} size={22} /> : null;
             })}
           </span>
         </div>

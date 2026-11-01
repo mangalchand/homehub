@@ -38,7 +38,7 @@ export default function RewardsPage() {
           const p = points.find((x) => x.memberId === m.id);
           return (
             <Card key={m.id}><CardContent className="flex items-center gap-3 p-4">
-              <Avatar name={m.displayName} color={m.color} size={44} />
+              <Avatar name={m.displayName} color={m.color} src={m.avatarUrl} size={44} />
               <div><p className="font-semibold">{m.displayName}</p><p className="flex items-center gap-1 text-2xl font-bold"><Sparkles className="h-5 w-5 text-amber-500" />{p?.available ?? 0}</p>
                 {!!p && p.balance !== p.available && <p className="text-xs text-muted-foreground">{p.balance - p.available} reserved for requests</p>}
                 <PointsReadAloudButton memberId={m.id} /></div>
@@ -54,7 +54,7 @@ export default function RewardsPage() {
               const m = name(a.memberId);
               return (
                 <div key={a.id} className="flex items-center gap-3 rounded-xl bg-muted/50 p-2.5">
-                  {m && <Avatar name={m.displayName} color={m.color} size={30} />}
+                  {m && <Avatar name={m.displayName} color={m.color} src={m.avatarUrl} size={30} />}
                   <p className="flex-1 text-sm"><b>{m?.displayName}</b> {a.label} <span className="text-muted-foreground">({a.pts} pts)</span></p>
                   <Button size="sm" variant="outline" aria-label="Decline" onClick={() => review.mutate({ kind: a.kind, id: a.id, approve: false })}><X /></Button>
                   <Button size="sm" aria-label="Approve" onClick={() => review.mutate({ kind: a.kind, id: a.id, approve: true }, { onSuccess: () => toast.success('Approved') })}><Check /> Approve</Button>
