@@ -16,7 +16,7 @@ export default function RewardsPage() {
   const members = useMembers().data ?? [];
   const rewards = useRewards().data ?? [];
   const points = usePoints().data ?? [];
-  const { isAdult, memberId, role } = useRole();
+  const { isAdult, canManageRewards, memberId, role } = useRole();
   const approvals = useApprovals(isAdult).data;
   const [newOpen, setNewOpen] = useState(false);
   const [redeemFor, setRedeemFor] = useState<string>(role === 'CHILD' && memberId ? memberId : '');
@@ -45,7 +45,7 @@ export default function RewardsPage() {
 
   return (
     <div>
-      <PageHeader title="Rewards" subtitle="Points earned from chores can be traded for family rewards." actions={isAdult && <Button onClick={() => setNewOpen(true)}><Plus /> Reward</Button>} />
+      <PageHeader title="Rewards" subtitle="Points earned from chores can be traded for family rewards." actions={canManageRewards && <Button onClick={() => setNewOpen(true)}><Plus /> Reward</Button>} />
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {earners.map((m) => {
           const p = points.find((x) => x.memberId === m.id);
@@ -100,7 +100,7 @@ export default function RewardsPage() {
                       ) : (
                         <div className="flex aspect-[4/3] w-full items-center justify-center rounded-xl bg-gradient-to-br from-amber-100 via-rose-50 to-indigo-100 text-amber-600"><Gift className="h-10 w-10" /></div>
                       )}
-                      {isAdult && (
+                      {canManageRewards && (
                         <label className="absolute bottom-2 right-2 flex cursor-pointer items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium shadow">
                           <Camera className="h-3.5 w-3.5" /> {r.imageUrl ? 'Change' : 'Add picture'}
                           <input type="file" accept="image/*" className="sr-only" aria-label={`Picture for ${r.title}`} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadImage(r.id, f).then(() => toast.success('Picture saved'), (er) => toast.error((er as Error).message)); }} />
