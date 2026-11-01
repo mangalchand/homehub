@@ -100,6 +100,9 @@ async function linkedFromToken(token: string | undefined): Promise<Linked | null
   if (!token) return null;
   const g = await prisma.alexaGrant.findUnique({ where: { accessTokenHash: sha256(token) }, include: { household: true } });
   if (!g || g.revokedAt || g.accessExpiresAt < new Date()) return null;
+  if (g.household.approvalStatus !== 'APPROVED') return null;
+  const u = await prisma.user.findUnique({ where: { id: g.userId }, select: { approvalStatus: true } });
+  if (u?.approvalStatus !== 'APPROVED') return null;
   const m = await activeMember(g.userId, g.householdId);
   if (!m) return null;
   void prisma.alexaGrant.update({ where: { id: g.id }, data: { lastUsedAt: new Date() } }).catch(() => undefined);
