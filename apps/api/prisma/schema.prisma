@@ -922,6 +922,9 @@ model Reward {
   icon        String?
   imageUrl    String?  @map("image_url")
   cost        Int
+  priceCents  Int?     @map("price_cents")
+  currency    String   @default("INR")
+  linkUrl     String?  @map("link_url")
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
 
@@ -1018,6 +1021,8 @@ model Announcement {
   expiresAt             DateTime?            @map("expires_at")
   repeatDaily           Boolean              @default(false) @map("repeat_daily")
   dailyTime             String?              @map("daily_time")
+  /// ISO weekdays (1=Mon..7=Sun); empty means every day.
+  repeatDays            Int[]                @default([]) @map("repeat_days")
   lastNotifiedLocalDate DateTime?            @map("last_notified_local_date") @db.Date
   authorId              String?              @map("author_id") @db.Uuid
   createdAt             DateTime             @default(now()) @map("created_at")

@@ -126,4 +126,23 @@ describe('browser speech fallback and lifecycle', () => {
     expect(isListening()).toBe(false);
     expect(recognizer.onresult).toBeNull();
   });
+
+  it('applies the saved voice preferences (gender, loudness, tone) to native speech', async () => {
+    const { loadVoicePrefs, saveVoicePrefs, speak, matchVoice, speechParams, DEFAULT_VOICE_PREFS } = await import('../voice/speech');
+    localStorage.clear();
+    expect(loadVoicePrefs()).toEqual(DEFAULT_VOICE_PREFS);
+    saveVoicePrefs({ gender: 'male', tone: 'low', volume: 'loud', rate: 'slow', attention: false });
+    expect(loadVoicePrefs()).toEqual({ gender: 'male', tone: 'low', volume: 'loud', rate: 'slow', attention: false });
+    localStorage.setItem('familyhub-voice-preferences', '{"gender":"robot","volume":"loud"}');
+    expect(loadVoicePrefs().gender).toBe('default');
+    const voices = [{ name: 'Google UK English Female', lang: 'en-GB' }, { name: 'Microsoft David', lang: 'en-US' }, { name: 'Veena', lang: 'en-IN' }];
+    expect(matchVoice(voices, 'female', 'en-IN')).toBe(2);
+    expect(matchVoice(voices, 'male', 'en-IN')).toBe(1);
+    expect(matchVoice(voices, 'default', 'en-IN')).toBe(-1);
+    expect(speechParams({ ...DEFAULT_VOICE_PREFS, volume: 'normal', tone: 'high' }, true)).toEqual({ pitch: 1.2, rate: 1, volume: 0.75 });
+    // No matching male voice installed: the pitch is lowered instead of silently ignoring the choice.
+    expect(speechParams({ ...DEFAULT_VOICE_PREFS, gender: 'male' }, false).pitch).toBe(0.8);
+    await speak('Dinner is ready', 'en-IN', { gender: 'female', tone: 'normal', volume: 'loud', rate: 'fast', attention: true });
+    expect(tts.speak).toHaveBeenCalledWith(expect.objectContaining({ text: 'Dinner is ready', volume: 1, rate: 1.15 }));
+  });
 });

@@ -97,4 +97,28 @@ describe('session reliability', () => {
     expect(row.expiresAt.getTime()).toBeGreaterThan(Date.now() + 20 * 86400000);
     expect((await s.get('/api/v1/auth/me')).status).toBe(200);
   });
+
+  it('stores an optional price, currency and link on rewards, and lets parents adjust points by hand', async () => {
+    const { household, ownerUser } = await makeHousehold();
+    const hid = household.id;
+    const kid = await addMember(hid, 'CHILD', 'Mia');
+    const owner = await login(ownerUser.email);
+    const child = { ...(await login(kid.user.email)), memberId: kid.member.id };
+    const created = await owner.post('/api/v1/households/' + hid + '/rewards', { title: 'Lego set', cost: 300, priceCents: 249900, currency: 'INR', linkUrl: 'https://example.com/lego' });
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({ priceCents: 249900, currency: 'INR', linkUrl: 'https://example.com/lego' });
+    expect((await owner.post('/api/v1/households/' + hid + '/rewards', { title: 'Bad', cost: 1, linkUrl: 'javascript:alert(1)' })).status).toBe(400);
+    const patched = await owner.patch('/api/v1/households/' + hid + '/rewards/' + created.body.id, { priceCents: null, linkUrl: null, description: 'Big box' });
+    expect(patched.status).toBe(200);
+    expect(patched.body).toMatchObject({ priceCents: null, linkUrl: null, description: 'Big box', cost: 300 });
+    const adjust = await owner.post('/api/v1/households/' + hid + '/points/adjust', { memberId: child.memberId, points: 25, note: 'Helped with groceries' });
+    expect(adjust.status).toBe(201);
+    expect((await owner.post('/api/v1/households/' + hid + '/points/adjust', { memberId: child.memberId, points: -5 })).status).toBe(201);
+    const points = (await owner.get('/api/v1/households/' + hid + '/points')).body as { memberId: string; available: number }[];
+    expect(points.find((p) => p.memberId === child.memberId)?.available).toBe(20);
+    const history = (await owner.get('/api/v1/households/' + hid + '/members/' + child.memberId + '/points/history')).body as { type: string; note: string | null }[];
+    expect(history.map((h) => h.type)).toEqual(['ADJUST', 'ADJUST']);
+    expect(history.some((h) => h.note === 'Helped with groceries')).toBe(true);
+    expect((await child.post('/api/v1/households/' + hid + '/points/adjust', { memberId: child.memberId, points: 500 })).status).toBe(403);
+  });
 });

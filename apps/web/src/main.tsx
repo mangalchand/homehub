@@ -8,6 +8,7 @@ import { Toaster } from 'sonner';
 import { registerSW } from 'virtual:pwa-register';
 import { persister, queryClient } from './lib/queryClient';
 import { setUnauthorizedHandler } from './lib/api';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 setUnauthorizedHandler(() => void queryClient.invalidateQueries({ queryKey: ['me'] }));
 import { App } from './App';
@@ -17,11 +18,13 @@ registerSW({ immediate: true });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <ErrorBoundary>
     <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 * 7, buster: 'v1' }}>
       <BrowserRouter>
         <App />
         <Toaster position="top-center" richColors closeButton />
       </BrowserRouter>
     </PersistQueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );

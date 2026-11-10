@@ -85,6 +85,9 @@ export interface Reward {
   imageUrl?: string | null;
   cost: number;
   isActive: boolean;
+  priceCents?: number | null;
+  currency?: string;
+  linkUrl?: string | null;
 }
 export interface ListSummary {
   id: string;
@@ -122,6 +125,7 @@ export interface Announcement {
   expiresAt: string | null;
   repeatDaily: boolean;
   dailyTime: string | null;
+  repeatDays?: number[];
   lastNotifiedLocalDate?: string | null;
   createdAt: string;
 }

@@ -107,6 +107,23 @@ function TaskDialog({
         </Field>
         <Field label="Assign to">
           <div className="flex flex-wrap gap-2">
+            {members.length > 1 && (
+              <button
+                type="button"
+                onClick={() =>
+                  setF({
+                    ...f,
+                    memberIds: f.memberIds.length === members.length ? [] : members.map((m) => m.id),
+                  })
+                }
+                className={cn(
+                  'rounded-full border px-3 py-1 text-sm',
+                  f.memberIds.length === members.length ? 'border-primary bg-primary/10' : 'opacity-70',
+                )}
+              >
+                Everyone
+              </button>
+            )}
             {members.map((m) => {
               const on = f.memberIds.includes(m.id);
               return (
@@ -163,6 +180,13 @@ function TaskDialog({
               Rotate between assignees{' '}
               <Switch checked={f.rotate} onCheckedChange={(v) => setF({ ...f, rotate: v })} />
             </label>
+            {f.memberIds.length > 1 && (
+              <p className="text-xs text-muted-foreground">
+                {f.rotate
+                  ? 'Takes turns: one person each time it repeats.'
+                  : `Each of the ${f.memberIds.length} people does this chore and earns the points separately.`}
+              </p>
+            )}
           </>
         ) : (
           <div className="grid grid-cols-2 gap-3">

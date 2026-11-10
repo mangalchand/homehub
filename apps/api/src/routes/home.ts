@@ -455,6 +455,7 @@ export function homeRouter() {
           expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
           repeatDaily: body.repeatDaily,
           dailyTime: body.repeatDaily ? (body.dailyTime ?? null) : null,
+          repeatDays: body.repeatDaily ? [...body.repeatDays].sort() : [],
           authorId: c.actor.kind === 'member' ? c.actor.memberId : null,
         },
       });
@@ -498,6 +499,7 @@ export function homeRouter() {
         expiresAt: body.expiresAt === undefined ? (current.expiresAt?.toISOString() ?? null) : body.expiresAt,
         repeatDaily: body.repeatDaily ?? current.repeatDaily,
         dailyTime: body.dailyTime === undefined ? current.dailyTime : body.dailyTime,
+        repeatDays: body.repeatDays ?? (body.repeatDaily === false ? [] : current.repeatDays),
       });
       if (!parsed.success)
         throw badRequest(parsed.error.issues[0]?.message ?? 'Invalid announcement schedule.');
@@ -513,6 +515,7 @@ export function homeRouter() {
           expiresAt: value.expiresAt ? new Date(value.expiresAt) : null,
           repeatDaily: value.repeatDaily,
           dailyTime: value.repeatDaily ? (value.dailyTime ?? null) : null,
+          repeatDays: value.repeatDaily ? [...value.repeatDays].sort() : [],
         },
       });
       realtime.publish(c.householdId, { type: 'announcements.changed' });

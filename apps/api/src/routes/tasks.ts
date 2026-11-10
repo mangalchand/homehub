@@ -352,14 +352,18 @@ export function tasksRouter() {
 
   route(m, { method: 'post', path: '/rewards', summary: 'Create a reward', tags: ['Rewards'], body: createRewardSchema, status: 201, middleware: [requireCap('rewards.manage')] }, async (req, _res, { body }) => {
     const c = ctx(req);
-    const r = await prisma.reward.create({ data: { householdId: c.householdId, title: body.title, description: body.description ?? null, icon: body.icon ?? null, cost: body.cost, isActive: body.isActive } });
+    const r = await prisma.reward.create({ data: { householdId: c.householdId, title: body.title, description: body.description ?? null, icon: body.icon ?? null, cost: body.cost, isActive: body.isActive, priceCents: body.priceCents ?? null, currency: body.currency ?? 'INR', linkUrl: body.linkUrl || null } });
     realtime.publish(c.householdId, { type: 'rewards.changed' });
     return r;
   });
 
   route(m, { method: 'patch', path: '/rewards/:rewardId', summary: 'Update a reward', tags: ['Rewards'], body: updateRewardSchema, middleware: [requireCap('rewards.manage')] }, async (req, _res, { body }) => {
     const c = ctx(req);
-    const r = await prisma.reward.updateMany({ where: { id: req.params.rewardId, householdId: c.householdId }, data: body });
+    const { linkUrl, priceCents, ...rest } = body;
+    const r = await prisma.reward.updateMany({
+      where: { id: req.params.rewardId, householdId: c.householdId },
+      data: { ...rest, ...(linkUrl !== undefined ? { linkUrl: linkUrl || null } : {}), ...(priceCents !== undefined ? { priceCents } : {}) },
+    });
     if (!r.count) throw notFound('Reward');
     realtime.publish(c.householdId, { type: 'rewards.changed' });
     return prisma.reward.findUniqueOrThrow({ where: { id: req.params.rewardId } });

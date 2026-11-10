@@ -9,8 +9,55 @@ interface SpeechPlugin {
   stop(): Promise<void>;
 }
 interface TtsPlugin {
-  speak(o: { text: string; lang?: string; rate?: number; volume?: number; category?: string }): Promise<void>;
+  speak(o: { text: string; lang?: string; rate?: number; pitch?: number; volume?: number; voice?: number; category?: string }): Promise<void>;
   stop(): Promise<void>;
+  getSupportedVoices?(): Promise<{ voices: { name: string; lang: string }[] }>;
+}
+
+export type VoiceGender = 'default' | 'female' | 'male';
+export type VoiceTone = 'low' | 'normal' | 'high';
+export type VoiceVolume = 'normal' | 'loud';
+export type VoiceRate = 'slow' | 'normal' | 'fast';
+export interface VoicePrefs { gender: VoiceGender; tone: VoiceTone; volume: VoiceVolume; rate: VoiceRate; attention: boolean }
+export const DEFAULT_VOICE_PREFS: VoicePrefs = { gender: 'default', tone: 'normal', volume: 'loud', rate: 'normal', attention: true };
+export const VOICE_PREFS_KEY = 'familyhub-voice-preferences';
+
+const pick = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(v as T) ? (v as T) : fallback);
+export function loadVoicePrefs(): VoicePrefs {
+  try {
+    const raw = JSON.parse(localStorage.getItem(VOICE_PREFS_KEY) ?? '{}') as Partial<VoicePrefs>;
+    return {
+      gender: pick(raw.gender, ['default', 'female', 'male'], DEFAULT_VOICE_PREFS.gender),
+      tone: pick(raw.tone, ['low', 'normal', 'high'], DEFAULT_VOICE_PREFS.tone),
+      volume: pick(raw.volume, ['normal', 'loud'], DEFAULT_VOICE_PREFS.volume),
+      rate: pick(raw.rate, ['slow', 'normal', 'fast'], DEFAULT_VOICE_PREFS.rate),
+      attention: typeof raw.attention === 'boolean' ? raw.attention : DEFAULT_VOICE_PREFS.attention,
+    };
+  } catch { return { ...DEFAULT_VOICE_PREFS }; }
+}
+export function saveVoicePrefs(prefs: VoicePrefs) { localStorage.setItem(VOICE_PREFS_KEY, JSON.stringify(prefs)); }
+
+const FEMALE = /female|woman|zira|samantha|victoria|karen|moira|tessa|veena|heera|kalpana|susan|hazel|aria|jenny|neerja|swara/i;
+const MALE = /\bmale\b|\bman\b|david|mark|daniel|alex|fred|ravi|hemant|prabhat|george|guy|james|madhur/i;
+/** Index of an installed voice whose name matches the chosen gender in the same language, or -1. */
+export function matchVoice(voices: { name: string; lang: string }[], gender: VoiceGender, lang: string) {
+  if (gender === 'default') return -1;
+  const re = gender === 'female' ? FEMALE : MALE;
+  const other = gender === 'female' ? MALE : FEMALE;
+  const base = lang.slice(0, 2).toLowerCase();
+  const ok = (v: { name: string; lang: string }) => re.test(v.name) && !(gender === 'male' && other.test(v.name));
+  const exact = voices.findIndex((v) => ok(v) && v.lang.replace('_', '-').toLowerCase() === lang.toLowerCase());
+  return exact >= 0 ? exact : voices.findIndex((v) => ok(v) && v.lang.toLowerCase().startsWith(base));
+}
+/** Pitch/rate/volume for the saved preferences; gender shifts pitch only when no matching voice is installed. */
+export function speechParams(prefs: VoicePrefs, genderMatched: boolean) {
+  const tone = { low: 0.8, normal: 1, high: 1.2 }[prefs.tone];
+  const shift = genderMatched ? 0 : { default: 0, female: 0.2, male: -0.2 }[prefs.gender];
+  return {
+    pitch: Math.min(2, Math.max(0.5, Math.round((tone + shift) * 100) / 100)),
+    rate: { slow: 0.85, normal: 1, fast: 1.15 }[prefs.rate],
+    volume: prefs.volume === 'loud' ? 1 : 0.75,
+  };
 }
 interface WebRecognition {
   lang: string;
@@ -116,7 +163,7 @@ export function stopSpeaking() {
 
 export const speakingSupported = () => (isNativeApp() && Capacitor.isPluginAvailable('TextToSpeech')) || Boolean(window.speechSynthesis && window.SpeechSynthesisUtterance);
 
-export async function speak(text: string, lang = voiceLang()) {
+export async function speak(text: string, lang = voiceLang(), prefs: VoicePrefs = loadVoicePrefs()) {
   stopListening();
   stopSpeaking();
   const version = speechVersion;
@@ -126,7 +173,10 @@ export async function speak(text: string, lang = voiceLang()) {
       try {
         await tts.stop();
         if (version !== speechVersion) return;
-        await tts.speak({ text, lang, rate: 1.0, category: 'ambient' });
+        const voices = prefs.gender === 'default' || !tts.getSupportedVoices ? [] : (await tts.getSupportedVoices().catch(() => ({ voices: [] }))).voices;
+        if (version !== speechVersion) return;
+        const voice = matchVoice(voices, prefs.gender, lang);
+        await tts.speak({ text, lang, ...speechParams(prefs, voice >= 0), ...(voice >= 0 ? { voice } : {}), category: 'ambient' });
         return;
       } catch {
         if (version !== speechVersion) return;
@@ -137,6 +187,11 @@ export async function speak(text: string, lang = voiceLang()) {
     await new Promise<void>((resolve, reject) => {
       const u = new SpeechSynthesisUtterance(text);
       u.lang = lang;
+      const voices = window.speechSynthesis.getVoices?.() ?? [];
+      const index = matchVoice(voices, prefs.gender, lang);
+      if (index >= 0) u.voice = voices[index]!;
+      const params = speechParams(prefs, index >= 0);
+      u.pitch = params.pitch; u.rate = params.rate; u.volume = params.volume;
       const finish = () => { if (cancelWebSpeech === finish) cancelWebSpeech = null; resolve(); };
       cancelWebSpeech = finish;
       u.onend = finish;
