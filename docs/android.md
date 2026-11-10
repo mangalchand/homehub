@@ -2,7 +2,7 @@
 
 The Android app (`apps/android`, Capacitor) is a full-screen shell around the hosted FamilyHub web app. Web changes arrive from the server; native plugin or permission changes require installing a new APK. It keeps the screen awake for wall displays.
 
-Production URL baked into the APK: `https://44-198-103-49.sslip.io` (override with `FAMILYHUB_URL` at build time).
+Production URL baked into the APK: `https://3-213-237-173.sslip.io` (override with `FAMILYHUB_URL` at build time).
 
 ## Family safety and communication (1.2)
 
