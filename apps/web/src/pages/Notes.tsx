@@ -10,18 +10,21 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Textarea } from '@/components/ui/input';
 import { EmptyState, PageHeader } from '@/components/ui/misc';
+import { ScheduleEditor, emptySchedule, scheduleForSubmit, type ScheduleDraft } from '@/components/ScheduleEditor';
+import { describeSchedule } from '@familyhub/shared';
 
 function NoteEditor({ note, onClose }: { note: NoteDTO | null; onClose: () => void }) {
   const hid = useHid()!;
   const qc = useQueryClient();
   const [title, setTitle] = useState(note?.title ?? '');
   const [body, setBody] = useState(note?.body ?? '');
+  const [schedule, setSchedule] = useState<ScheduleDraft>(note ? { repeatDaily: note.repeatDaily, repeatDays: note.repeatDays ?? [], monthDays: note.monthDays ?? [], dailyTimes: note.dailyTimes ?? [] } : emptySchedule);
   const [saved, setSaved] = useState(note);
   const save = useMutation({
     mutationFn: () =>
       api<NoteDTO>(hh(hid, saved ? `/notes/${saved.id}` : '/notes'), {
         method: saved ? 'PATCH' : 'POST',
-        body: { title, body },
+        body: { title, body, ...scheduleForSubmit({ ...schedule, dailyTimes: schedule.dailyTimes.length ? schedule.dailyTimes : ['09:00'] }) },
       }),
     networkMode: 'always',
     onSuccess: async (value) => {
@@ -55,6 +58,8 @@ function NoteEditor({ note, onClose }: { note: NoteDTO | null; onClose: () => vo
         <Field label="Body">
           <Textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={10000} rows={6} />
         </Field>
+        <ScheduleEditor value={schedule} onChange={setSchedule} label="Remind" defaultTime="09:00" />
+        {schedule.repeatDaily && <p className="text-xs text-muted-foreground">At each time the note is posted to the household feed and read aloud on displays with spoken alerts on.</p>}
         {save.error && (
           <p role="alert" className="text-sm text-destructive">
             {(save.error as Error).message}
@@ -164,7 +169,10 @@ function HouseholdNotes({ householdId }: { householdId: string }) {
           <Card key={note.id} className="min-w-0">
             <CardContent className="p-4">
               <div className="flex items-start gap-2">
-                <h2 className="min-w-0 flex-1 break-words font-semibold">{note.title}</h2>
+                <div className="min-w-0 flex-1">
+                  <h2 className="break-words font-semibold">{note.title}</h2>
+                  {note.repeatDaily && <p className="text-xs text-muted-foreground">{describeSchedule(note)}</p>}
+                </div>
                 {canEdit(note) && (
                   <div className="flex shrink-0 gap-1">
                     <Button

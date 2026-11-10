@@ -37,6 +37,10 @@ const note = (patch: Partial<NoteDTO> = {}): NoteDTO => ({
   body: 'Keep this safe',
   authorMemberId: 'member-1',
   authorDeviceId: null,
+  repeatDaily: false,
+  repeatDays: [],
+  monthDays: [],
+  dailyTimes: [],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-02T00:00:00.000Z',
   attachments: [],
@@ -99,7 +103,7 @@ describe('household notes', () => {
     await screen.findByText('Note saved.');
     expect(api).toHaveBeenCalledWith('/api/v1/households/home-a/notes', {
       method: 'POST',
-      body: { title: 'House instructions', body: 'Keep this safe' },
+      body: expect.objectContaining({ title: 'House instructions', body: 'Keep this safe', repeatDaily: false }),
     });
     expect(screen.getByText('Image editor for note-1')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
@@ -115,7 +119,7 @@ describe('household notes', () => {
     await screen.findByText('Note saved.');
     expect(api).toHaveBeenCalledWith('/api/v1/households/home-a/notes/note-1', {
       method: 'PATCH',
-      body: { title: 'Updated title', body: 'Keep this safe' },
+      body: expect.objectContaining({ title: 'Updated title', body: 'Keep this safe' }),
     });
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete Updated title' }));

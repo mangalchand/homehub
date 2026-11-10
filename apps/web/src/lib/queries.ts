@@ -52,6 +52,7 @@ export interface Task {
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   dueAt: string | null;
   rrule: string | null;
+  timesPerDay?: number;
   points: number;
   requiresApproval: boolean;
   rotate: boolean;
@@ -126,6 +127,8 @@ export interface Announcement {
   repeatDaily: boolean;
   dailyTime: string | null;
   repeatDays?: number[];
+  monthDays?: number[];
+  dailyTimes?: string[];
   lastNotifiedLocalDate?: string | null;
   createdAt: string;
 }

@@ -1,3 +1,4 @@
+import { Avatar } from '@/components/ui/misc';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,7 +40,49 @@ function ScheduleForm({ settings }: { settings: Settings }) {
 }
 
 function SummaryText({ payload }: { payload: DailySummaryPayload }) {
-  return <div><h3 className="font-semibold">{payload.title}</h3><p className="mb-3 text-xs text-muted-foreground">Snapshot generated {new Date(payload.generatedAt).toLocaleString()}</p><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{payload.body}</p></div>;
+  const people = payload.people ?? [];
+  const leader = people.reduce<(typeof people)[number] | null>((best, p) => (p.today > (best?.today ?? 0) ? p : best), null);
+  // Older snapshots have no structured fields: show the saved text as-is.
+  const details = people.length ? payload.body.split('\n\n').filter((b) => !b.startsWith('Points by person') && b !== payload.narrative).join('\n\n') : payload.body;
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-semibold">{payload.title}</h3>
+        <p className="text-xs text-muted-foreground">Snapshot generated {new Date(payload.generatedAt).toLocaleString()}</p>
+      </div>
+      {payload.narrative && (
+        <p className="rounded-xl bg-primary/5 p-3 text-[15px] leading-relaxed">
+          {payload.aiGenerated && <span className="mr-2 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-primary">AI summary</span>}
+          {payload.narrative}
+        </p>
+      )}
+      {people.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <caption className="mb-2 text-left font-semibold">Points by person</caption>
+            <thead className="text-xs text-muted-foreground">
+              <tr><th className="py-1 text-left">Person</th><th className="text-right">Today</th><th className="text-right">Total</th><th className="text-right">Available</th><th className="text-right">Chores left</th></tr>
+            </thead>
+            <tbody>
+              {people.map((p) => (
+                <tr key={p.memberId} className="border-t">
+                  <td className="py-2"><span className="flex items-center gap-2"><Avatar name={p.name} color="#6366f1" src={p.avatarUrl} size={28} />{p.name}{leader?.memberId === p.memberId && <span aria-label="Top earner today">⭐</span>}</span></td>
+                  <td className="text-right font-semibold text-emerald-600">+{p.today}</td>
+                  <td className="text-right">{p.total}</td>
+                  <td className="text-right">{p.available}</td>
+                  <td className="text-right">{p.pendingChores}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <details open={!people.length}>
+        <summary className="cursor-pointer text-sm font-semibold">Pending tasks and chores</summary>
+        <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">{details}</p>
+      </details>
+    </div>
+  );
 }
 
 /** Register this exported page at /summaries inside the household AppShell. */

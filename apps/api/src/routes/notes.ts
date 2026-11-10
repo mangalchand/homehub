@@ -133,9 +133,18 @@ export function notesRouter() {
       const row = await prisma.$transaction(async (db) => {
         const p = await attachmentParent(db, c, { noteId: req.params.noteId! }, true);
         requireAttachmentWrite(p.canWrite);
+        const merged = createNoteSchema.safeParse({
+          title: body.title ?? p.note!.title,
+          body: body.body ?? p.note!.body,
+          repeatDaily: body.repeatDaily ?? p.note!.repeatDaily,
+          repeatDays: body.repeatDays ?? (body.repeatDaily === false ? [] : p.note!.repeatDays),
+          monthDays: body.monthDays ?? (body.repeatDaily === false ? [] : p.note!.monthDays),
+          dailyTimes: body.dailyTimes ?? (body.repeatDaily === false ? [] : p.note!.dailyTimes),
+        });
+        if (!merged.success) throw badRequest(merged.error.issues[0]?.message ?? 'Invalid note schedule.');
         return db.note.update({
           where: { householdId_id: { householdId: c.householdId, id: p.note!.id } },
-          data: body,
+          data: { ...merged.data, lastNotifiedSlot: merged.data.repeatDaily ? undefined : null },
           include: { attachments },
         });
       });

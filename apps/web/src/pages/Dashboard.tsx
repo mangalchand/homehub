@@ -369,6 +369,7 @@ function UpNextOverlay({ members }: { members: MemberDTO[] }) {
                         key={id}
                         name={m.displayName}
                         color={m.color}
+                        src={m.avatarUrl}
                         size={20}
                         className="ring-1 ring-black/30"
                       />
@@ -463,6 +464,7 @@ export default function DashboardPage() {
                   key={m.id}
                   name={m.displayName}
                   color={m.color}
+                  src={m.avatarUrl}
                   size={40}
                   className="ring-[3px] ring-white/80"
                 />

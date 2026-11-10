@@ -1,3 +1,4 @@
+import { currentLang } from '@/lib/i18n';
 import { isNativeApp } from '../nativePush';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
@@ -79,7 +80,7 @@ const webCtor = () => {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 };
 
-export const voiceLang = () => navigator.language?.startsWith('en') ? navigator.language : 'en-IN';
+export const voiceLang = () => (currentLang() === 'hi' ? 'hi-IN' : navigator.language?.startsWith('en') ? navigator.language : 'en-IN');
 export const voiceSupported = () => (isNativeApp() ? Capacitor.isPluginAvailable('SpeechRecognition') : Boolean(webCtor()));
 
 let current: WebRecognition | null = null;

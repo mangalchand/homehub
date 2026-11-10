@@ -92,9 +92,9 @@ describe('household WhatsApp call links', () => {
     ).toBeNull();
     const empty = await actor.get(url);
     expect(empty.status).toBe(200);
-    expect(empty.body).toEqual({ whatsappCallUrl: null });
+    expect(empty.body).toMatchObject({ whatsappCallUrl: null });
     expect(empty.headers['cache-control']).toBe('private, no-store');
-    expect((await actor.patch(url, { whatsappCallUrl: voice })).body).toEqual({ whatsappCallUrl: voice });
+    expect((await actor.patch(url, { whatsappCallUrl: voice })).body).toMatchObject({ whatsappCallUrl: voice });
     expect(
       await prisma.householdFeatureSettings.findUniqueOrThrow({ where: { householdId: household.id } }),
     ).toMatchObject({ dailySummaryEnabled: true, dailySummaryTime: '20:30' });
@@ -102,10 +102,10 @@ describe('household WhatsApp call links', () => {
       where: { householdId: household.id },
       data: { dailySummaryEnabled: false, dailySummaryTime: '19:15' },
     });
-    expect((await actor.patch(url, { whatsappCallUrl: video })).body).toEqual({ whatsappCallUrl: video });
-    expect((await actor.get(url)).body).toEqual({ whatsappCallUrl: video });
-    expect((await actor.patch(url, { whatsappCallUrl: null })).body).toEqual({ whatsappCallUrl: null });
-    expect((await actor.get(url)).body).toEqual({ whatsappCallUrl: null });
+    expect((await actor.patch(url, { whatsappCallUrl: video })).body).toMatchObject({ whatsappCallUrl: video });
+    expect((await actor.get(url)).body).toMatchObject({ whatsappCallUrl: video });
+    expect((await actor.patch(url, { whatsappCallUrl: null })).body).toMatchObject({ whatsappCallUrl: null });
+    expect((await actor.get(url)).body).toMatchObject({ whatsappCallUrl: null });
     expect(
       await prisma.householdFeatureSettings.findUnique({ where: { householdId: household.id } }),
     ).toMatchObject({ dailySummaryEnabled: false, dailySummaryTime: '19:15', whatsappCallUrl: null });
@@ -124,11 +124,11 @@ describe('household WhatsApp call links', () => {
       });
       const user = role === 'OWNER' ? ownerUser : (await addMember(household.id, role, role)).user;
       const actor = await session({ userId: user.id });
-      expect((await actor.get(path(household.id))).body).toEqual({ whatsappCallUrl: voice });
+      expect((await actor.get(path(household.id))).body).toMatchObject({ whatsappCallUrl: voice });
       const status = role === 'OWNER' || role === 'ADULT_ADMIN' ? 200 : 403;
       expect((await actor.patch(path(household.id), { whatsappCallUrl: video })).status).toBe(status);
       expect((await actor.patch(path(household.id), { whatsappCallUrl: null })).status).toBe(status);
-      expect((await actor.get(path(household.id))).body).toEqual({
+      expect((await actor.get(path(household.id))).body).toMatchObject({
         whatsappCallUrl: status === 200 ? null : voice,
       });
     },
@@ -153,7 +153,7 @@ describe('household WhatsApp call links', () => {
     expect((await actor.patch(path(a.household.id), { whatsappCallUrl: null })).status).toBe(403);
     expect((await actor.unlock(a.household.id)).status).toBe(200);
     expect((await actor.patch(path(a.household.id), { whatsappCallUrl: voice })).status).toBe(200);
-    expect((await actor.get(path(a.household.id))).body).toEqual({ whatsappCallUrl: voice });
+    expect((await actor.get(path(a.household.id))).body).toMatchObject({ whatsappCallUrl: voice });
     expect((await actor.get(path(b.household.id))).status).toBe(404);
     expect((await actor.patch(path(b.household.id), { whatsappCallUrl: null })).status).toBe(404);
     expect((await actor.patch(path(a.household.id), { whatsappCallUrl: null })).status).toBe(200);
@@ -191,8 +191,8 @@ describe('household WhatsApp call links', () => {
         color: '#123456',
       },
     });
-    expect((await actor.get(path(a.household.id))).body).toEqual({ whatsappCallUrl: voice });
-    expect((await actor.get(path(b.household.id))).body).toEqual({ whatsappCallUrl: video });
+    expect((await actor.get(path(a.household.id))).body).toMatchObject({ whatsappCallUrl: voice });
+    expect((await actor.get(path(b.household.id))).body).toMatchObject({ whatsappCallUrl: video });
     expect((await actor.patch(path(b.household.id), { whatsappCallUrl: null })).status).toBe(403);
     expect((await actor.get(path(c.household.id))).status).toBe(404);
     expect((await actor.get(path('not-a-household-id'))).status).toBe(404);
@@ -264,7 +264,7 @@ describe('household WhatsApp call links', () => {
     ]) {
       expect((await actor.patch(url, body)).status).toBe(400);
     }
-    expect((await actor.get(url)).body).toEqual({ whatsappCallUrl: voice });
+    expect((await actor.get(url)).body).toMatchObject({ whatsappCallUrl: voice });
   });
 
   it('publishes only household-scoped invalidation and never stores the link in audit metadata or fetches it', async () => {
@@ -294,5 +294,32 @@ describe('household WhatsApp call links', () => {
       stopA();
       stopB();
     }
+  });
+});
+
+describe('named call groups', () => {
+  it('lets owners save Family/Friends groups, members read them and notify one group link', async () => {
+    const { household, ownerUser } = await makeHousehold();
+    const child = await addMember(household.id, 'CHILD', 'Kid');
+    const owner = await session({ userId: ownerUser.id });
+    const groups = [{ id: 'friends-1', name: 'Friends', url: video }];
+    const put = (s: Awaited<ReturnType<typeof session>>, body: object) =>
+      request(app).put(`${path(household.id)}/groups`).set('Cookie', s.cookie).set('x-csrf-token', 'call-test').send(body);
+    expect((await put(owner, { groups: [{ id: 'bad', name: 'X', url: 'https://evil.example/x' }] })).status).toBe(400);
+    expect((await put(owner, { groups: [...groups, ...groups] })).status).toBe(400);
+    const saved = await put(owner, { groups });
+    expect(saved.status).toBe(200);
+    expect(saved.body).toMatchObject({ whatsappCallUrl: null, groups });
+    if (child.user) {
+      const kid = await session({ userId: child.user.id });
+      expect((await kid.get(path(household.id))).body.groups).toEqual(groups);
+      expect((await put(kid, { groups: [] })).status).toBe(403);
+    }
+    expect((await owner.post(`${path(household.id)}/notify`, { groupId: 'missing' })).status).toBe(400);
+    const sent = await owner.post(`${path(household.id)}/notify`, { groupId: 'friends-1' });
+    expect(sent.status).toBe(202);
+    const feed = await prisma.notification.findFirstOrThrow({ where: { householdId: household.id, type: 'family-call.invitation' } });
+    expect(feed.title).toBe('Join the Friends call');
+    expect(feed.body).toContain(video);
   });
 });

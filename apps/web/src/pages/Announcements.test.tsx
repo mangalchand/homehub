@@ -102,7 +102,7 @@ describe('announcements page', () => {
     await waitFor(() =>
       expect(api).toHaveBeenCalledWith('/api/v1/households/h/announcements', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           title: 'Dinner is ready',
           body: '',
           priority: 'NORMAL',
@@ -110,8 +110,10 @@ describe('announcements page', () => {
           expiresAt: null,
           repeatDaily: false,
           repeatDays: [],
+          monthDays: [],
+          dailyTimes: [],
           dailyTime: null,
-        },
+        }),
       }),
     );
     expect(await screen.findByText('Announcement saved.')).toBeInTheDocument();
@@ -120,7 +122,7 @@ describe('announcements page', () => {
     view();
     fireEvent.change(screen.getByLabelText('Announcement'), { target: { value: 'Take medicine' } });
     fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'daily' } });
-    fireEvent.change(screen.getByLabelText('Announcement time (UTC)'), { target: { value: '08:15' } });
+    fireEvent.change(screen.getByLabelText('Time 1'), { target: { value: '08:15' } });
     fireEvent.click(screen.getByRole('button', { name: 'Post announcement' }));
     await waitFor(() =>
       expect(api).toHaveBeenCalledWith('/api/v1/households/h/announcements', {
@@ -132,10 +134,10 @@ describe('announcements page', () => {
   it('configures a weekly announcement on chosen weekdays and shows the schedule on the card', async () => {
     state.data = [{ ...message, repeatDaily: true, dailyTime: '19:00', repeatDays: [1, 3, 5] }];
     view();
-    expect(screen.getByText('Repeats every Mon, Wed, Fri at 19:00 (UTC)')).toBeInTheDocument();
+    expect(screen.getByText(/Every Mon, Wed, Fri at 19:00/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Announcement'), { target: { value: 'Bins out' } });
     fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'weekly' } });
-    fireEvent.change(screen.getByLabelText('Announcement time (UTC)'), { target: { value: '07:00' } });
+    fireEvent.change(screen.getByLabelText('Time 1'), { target: { value: '07:00' } });
     const days = screen.getByRole('group', { name: 'Repeat on days' });
     const pressed = () => Array.from(days.querySelectorAll('button[aria-pressed="true"]')).map((b) => b.textContent);
     expect(pressed()).toHaveLength(1);

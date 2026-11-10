@@ -180,7 +180,7 @@ describe('FamilyCallCard', () => {
   it('resets the draft and scopes reads/writes when the selected household changes', async () => {
     saved = { whatsappCallUrl: voice };
     const result = view();
-    fireEvent.change(await screen.findByRole('textbox'), {
+    fireEvent.change(await screen.findByRole('textbox', { name: 'WhatsApp call link' }), {
       target: { value: 'https://call.whatsapp.com/voice/unsaved' },
     });
     let resolve!: (data: FamilyCallSettings) => void;
@@ -198,7 +198,7 @@ describe('FamilyCallCard', () => {
     await act(async () => {
       resolve({ whatsappCallUrl: video });
     });
-    expect(await screen.findByRole('textbox')).toHaveValue(video);
+    expect(await screen.findByRole('textbox', { name: 'WhatsApp call link' })).toHaveValue(video);
     expect(api).toHaveBeenLastCalledWith('/api/v1/households/home-b/family-call');
     vi.mocked(api).mockResolvedValue({ whatsappCallUrl: null });
     fireEvent.click(screen.getByRole('button', { name: 'Clear call link' }));

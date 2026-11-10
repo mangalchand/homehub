@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   CalendarDays,
@@ -33,31 +33,67 @@ import { Avatar } from './ui/misc';
 import { toast } from 'sonner';
 import { api, hh } from '@/lib/api';
 import { onQueueChange, pendingCount } from '@/lib/offline';
-import { useHousehold, useMe, useRole } from '@/lib/queries';
+import { useHousehold, useMe, useMembers, useRole } from '@/lib/queries';
 import { useOnline, useRealtime } from '@/lib/realtime';
 import { queryClient } from '@/lib/queryClient';
 import { cn } from '@/lib/utils';
 import { useUi } from '@/store/ui';
+import { useT } from '@/lib/i18n';
 import { Button } from './ui/button';
 import { Dialog } from './ui/dialog';
 import { Input } from './ui/input';
 
 const NAV = [
-  { to: '/', label: 'Home', icon: LayoutGrid, end: true },
-  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { to: '/chores', label: 'Chores', icon: Sparkles },
-  { to: '/lists', label: 'Lists', icon: ShoppingBasket },
-  { to: '/meals', label: 'Meals', icon: UtensilsCrossed },
-  { to: '/photos', label: 'Photos', icon: Images },
-  { to: '/rewards', label: 'Rewards', icon: Gift },
-  { to: '/family', label: 'Family', icon: Users },
-  { to: '/safety', label: 'Safety', icon: ShieldAlert },
-  { to: '/notes', label: 'Notes', icon: NotebookPen },
-  { to: '/announcements', label: 'Announcements', icon: Megaphone },
-  { to: '/summaries', label: 'Evening summary', icon: ClipboardList },
-  { to: '/home-management', label: 'Home Management', icon: Home },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/', label: 'Home', icon: LayoutGrid, end: true, group: 'Everyday' },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays, group: 'Everyday' },
+  { to: '/chores', label: 'Chores', icon: Sparkles, group: 'Everyday' },
+  { to: '/lists', label: 'Lists', icon: ShoppingBasket, group: 'Everyday' },
+  { to: '/meals', label: 'Meals', icon: UtensilsCrossed, group: 'Everyday' },
+  { to: '/family', label: 'Family', icon: Users, group: 'Family' },
+  { to: '/rewards', label: 'Rewards', icon: Gift, group: 'Family' },
+  { to: '/photos', label: 'Photos', icon: Images, group: 'Family' },
+  { to: '/announcements', label: 'Board', icon: Megaphone, group: 'Family', match: ['/notes', '/summaries'] },
+  { to: '/home-management', label: 'Home & safety', icon: Home, group: 'Home & settings', match: ['/safety'] },
+  { to: '/settings', label: 'Settings', icon: Settings, group: 'Home & settings' },
 ];
+/** Pages merged under one menu entry, shown as tabs at the top of each page. */
+const SECTION_TABS = [
+  [
+    { to: '/announcements', label: 'Announcements', icon: Megaphone },
+    { to: '/notes', label: 'Notes', icon: NotebookPen },
+    { to: '/summaries', label: 'Daily summary', icon: ClipboardList },
+  ],
+  [
+    { to: '/home-management', label: 'Home & devices', icon: Home },
+    { to: '/safety', label: 'Safety & SOS', icon: ShieldAlert },
+  ],
+];
+const inSection = (pathname: string, match?: string[]) => Boolean(match?.some((m) => pathname.startsWith(m)));
+
+function SectionTabs({ pathname }: { pathname: string }) {
+  const t = useT();
+  const tabs = SECTION_TABS.find((t) => t.some((x) => pathname.startsWith(x.to)));
+  if (!tabs) return null;
+  return (
+    <nav aria-label="Section" className="mb-4 flex gap-1.5 overflow-x-auto rounded-2xl border bg-card p-1.5">
+      {tabs.map(({ to, label, icon: Icon }) => (
+        <NavLink
+          key={to}
+          to={to}
+          className={({ isActive }) =>
+            cn(
+              'flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+              isActive && 'bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary',
+            )
+          }
+        >
+          <Icon className="h-4 w-4" strokeWidth={2.2} />
+          {t(label)}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
 const MOBILE_NAV = ['/', '/calendar', '/chores', '/lists', '/photos'];
 const MORE_HINT: Record<string, string> = {
   '/meals': 'Weekly meal plan',
@@ -154,7 +190,10 @@ function useScreenWakeLock(active: boolean) {
 export function AppShell({ children }: { children: ReactNode }) {
   const { householdId, setHousehold, displayMode, setDisplayMode } = useUi();
   const me = useMe().data!;
+  const t = useT();
   const household = useHousehold().data;
+  const myMemberId = me.memberships.find((x) => x.householdId === household?.id)?.memberId;
+  const myPhoto = useMembers().data?.find((m) => m.id === myMemberId)?.avatarUrl ?? null;
   const { isDevice, elevated } = useRole();
   const online = useOnline();
   const live = useRealtime(householdId);
@@ -235,9 +274,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
           </div>
           <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto" aria-label="Main">
-            {NAV.map(({ to, label, icon: Icon, end }) => (
+            {NAV.map(({ to, label, icon: Icon, end, group, match }, i) => (
+              <Fragment key={to}>
+              {!kiosk && group !== NAV[i - 1]?.group && (
+                <p className="px-3 pb-1 pt-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70">{t(group)}</p>
+              )}
               <NavLink
-                key={to}
                 to={to}
                 end={end}
                 title={label}
@@ -245,18 +287,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                   cn(
                     'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
                     kiosk && 'justify-center px-0 py-3.5',
-                    isActive && 'bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary',
+                    (isActive || inSection(pathname, match)) && 'bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary',
                   )
                 }
               >
                 <Icon className={kiosk ? 'h-6 w-6' : 'h-[19px] w-[19px]'} strokeWidth={2.2} />
-                {!kiosk && label}
+                {!kiosk && t(label)}
               </NavLink>
+              </Fragment>
             ))}
           </nav>
           {!kiosk && me.kind !== 'device' && me.user && (
             <div className="mb-2 flex items-center gap-2.5 rounded-2xl bg-muted/60 p-2.5">
-              <Avatar name={me.user.displayName ?? me.user.email} color="#6d4aff" size={34} />
+              <Avatar name={me.user.displayName ?? me.user.email} color="#6d4aff" src={myPhoto} size={34} />
               <div className="min-w-0 text-xs">
                 <p className="truncate font-semibold">{me.user.displayName}</p>
                 <p className="truncate text-muted-foreground">{me.user.email}</p>
@@ -351,6 +394,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             kiosk && 'md:p-5',
           )}
         >
+          <SectionTabs pathname={pathname} />
           {children}
         </main>
         <span className="sr-only" aria-live="polite">
@@ -379,7 +423,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <span className={cn('rounded-full px-4 py-1 transition-all', isActive && 'bg-primary/10')}>
                   <Icon className="h-5 w-5" strokeWidth={2.2} />
                 </span>
-                {label}
+                {t(label)}
               </>
             )}
           </NavLink>
@@ -413,7 +457,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               }
             >
               <Icon className="h-5 w-5" strokeWidth={2.2} />
-              <span className="flex-1">{label}</span>
+              <span className="flex-1">{t(label)}</span>
               <span className="text-xs font-normal text-muted-foreground">{MORE_HINT[to]}</span>
             </NavLink>
           ))}

@@ -31,6 +31,9 @@ const taskInclude = {
 } satisfies Prisma.TaskInclude;
 type TaskRow = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
 
+/** Completion keys are `occurrence` or `occurrence#n` for the n-th completion of a multi-times-per-day task. */
+export const baseKey = (key: string) => key.split('#')[0]!;
+
 /** Occurrence info for a chore on a given local date. */
 export function occurrenceFor(task: Pick<TaskRow, 'rrule' | 'dueAt' | 'createdAt'>, date: string, tz: string) {
   if (!task.rrule) return { key: 'once', due: true, index: 0 };
@@ -49,7 +52,7 @@ function taskDTO(t: TaskRow, date: string, tz: string) {
   const occ = occurrenceFor(t, date, tz);
   const assignees = t.assignments.map((a) => a.memberId);
   const currentAssignees = t.rotate && assignees.length > 1 && occ.index >= 0 ? [assignees[occ.index % assignees.length]!] : assignees;
-  const relevant = t.completions.filter((c) => c.occurrenceKey === occ.key && c.status !== 'REJECTED');
+  const relevant = t.completions.filter((c) => baseKey(c.occurrenceKey) === occ.key && c.status !== 'REJECTED');
   return {
     id: t.id,
     kind: t.kind,
@@ -62,6 +65,7 @@ function taskDTO(t: TaskRow, date: string, tz: string) {
     points: t.points,
     requiresApproval: t.requiresApproval,
     rotate: t.rotate,
+    timesPerDay: t.timesPerDay,
     icon: t.icon,
     checklist: t.checklist,
     status: t.status,
@@ -170,6 +174,7 @@ export function tasksRouter() {
           points: body.points,
           requiresApproval: body.requiresApproval,
           rotate: body.rotate,
+          timesPerDay: body.timesPerDay,
           icon: body.icon ?? null,
           checklist: body.checklist,
           createdById: c.actor.kind === 'member' ? c.actor.userId : null,
@@ -207,6 +212,7 @@ export function tasksRouter() {
           points: body.points,
           requiresApproval: body.requiresApproval,
           rotate: body.rotate,
+          timesPerDay: body.timesPerDay,
           icon: body.icon,
           checklist: body.checklist,
           status: body.status,
@@ -256,10 +262,13 @@ export function tasksRouter() {
       if (!occ.due) throw unprocessable('NOT_DUE', 'This chore is not scheduled for that day');
       const needsApproval = t.requiresApproval && !(c.actor.kind === 'member' && can(c.actor, 'chores.approve'));
       const status = needsApproval ? 'PENDING_APPROVAL' : 'APPROVED';
+      const already = await prisma.choreCompletion.count({ where: { taskId: t.id, memberId: member.id, status: { not: 'REJECTED' }, OR: [{ occurrenceKey: occ.key }, { occurrenceKey: { startsWith: `${occ.key}#` } }] } });
+      if (already >= t.timesPerDay) throw conflict('Already completed');
+      const occurrenceKey = already === 0 ? occ.key : `${occ.key}#${already + 1}`;
       try {
         const completion = await prisma.$transaction(async (tx) => {
           const comp = await tx.choreCompletion.create({
-            data: { householdId: c.householdId, taskId: t.id, memberId: member.id, occurrenceKey: occ.key, status, pointsAwarded: t.points },
+            data: { householdId: c.householdId, taskId: t.id, memberId: member.id, occurrenceKey, status, pointsAwarded: t.points },
           });
           if (t.points > 0) {
             await tx.rewardTransaction.create({
@@ -269,7 +278,7 @@ export function tasksRouter() {
               },
             });
           }
-          if (!t.rrule && !needsApproval) await tx.task.update({ where: { id: t.id }, data: { status: 'DONE', completedAt: new Date() } });
+          if (!t.rrule && !needsApproval && already + 1 >= t.timesPerDay) await tx.task.update({ where: { id: t.id }, data: { status: 'DONE', completedAt: new Date() } });
           return comp;
         });
         await audit(req, { householdId: c.householdId, action: 'task.completed', entityType: 'task', entityId: t.id, metadata: { memberId: member.id, status } });

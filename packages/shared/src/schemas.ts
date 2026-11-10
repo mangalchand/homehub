@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scheduleFields, scheduleIssues, timeOfDay } from './schedule';
 import {
   ANNOUNCEMENT_PRIORITIES,
   CALENDAR_CATEGORIES,
@@ -237,6 +238,8 @@ export const createTaskSchema = z.object({
   points: z.number().int().min(0).max(1000).default(0),
   requiresApproval: z.boolean().default(false),
   rotate: z.boolean().default(false),
+  /** How many times each assignee can complete the task per occurrence day. */
+  timesPerDay: z.number().int().min(1).max(6).default(1),
   icon: z.string().max(40).nullable().optional(),
   checklist: z.array(checklistItem).max(50).default([]),
   memberIds: z.array(z.string().uuid()).max(20).default([]),
@@ -324,40 +327,19 @@ export const updateListItemSchema = listItemFields
   .extend({ expectedVersion: z.number().int().optional() });
 
 // ── Announcements ──
-const announcementFields = z.object({
-  title: z.string().trim().min(1).max(140),
-  body: z.string().max(2000).nullable().optional(),
-  priority: z.enum(ANNOUNCEMENT_PRIORITIES).default('NORMAL'),
-  color: hexColor.nullable().optional(),
-  pinned: z.boolean().default(false),
-  expiresAt: isoDateTime.nullable().optional(),
-  repeatDaily: z.boolean().default(false),
-  dailyTime: z
-    .string()
-    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
-    .nullable()
-    .optional(),
-  /** ISO weekdays (1=Mon..7=Sun) for weekly repeats; empty means every day. */
-  repeatDays: z
-    .array(z.number().int().min(1).max(7))
-    .max(7)
-    .refine((d) => new Set(d).size === d.length, 'Choose each day once.')
-    .default([]),
-});
-export const createAnnouncementSchema = announcementFields.superRefine((value, ctx) => {
-  if (value.repeatDaily && !value.dailyTime)
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['dailyTime'],
-      message: 'Choose a daily announcement time.',
-    });
-  if (!value.repeatDaily && value.repeatDays.length)
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['repeatDays'],
-      message: 'Turn on repeating to choose days.',
-    });
-});
+const announcementFields = z
+  .object({
+    title: z.string().trim().min(1).max(140),
+    body: z.string().max(2000).nullable().optional(),
+    priority: z.enum(ANNOUNCEMENT_PRIORITIES).default('NORMAL'),
+    color: hexColor.nullable().optional(),
+    pinned: z.boolean().default(false),
+    expiresAt: isoDateTime.nullable().optional(),
+    /** Legacy single time; superseded by dailyTimes when that is non-empty. */
+    dailyTime: timeOfDay.nullable().optional(),
+  })
+  .merge(scheduleFields);
+export const createAnnouncementSchema = announcementFields.superRefine((value, ctx) => scheduleIssues(value, ctx, value.dailyTime));
 export const updateAnnouncementSchema = announcementFields.partial();
 
 // ── Dashboard ──
