@@ -9,6 +9,7 @@ const { state, navigate } = vi.hoisted(() => ({ state: { me: null as Me | null }
 vi.mock('@/lib/queries', () => ({
   useMe: () => ({ data: state.me }),
   useHousehold: () => ({ data: { name: 'Manmay' } }),
+  useMembers: () => ({ data: [] }),
   useRole: () => ({ isDevice: state.me?.kind === 'device', elevated: false }),
 }));
 vi.mock('@/lib/queryClient', () => ({ queryClient: { invalidateQueries: vi.fn() } }));
@@ -82,9 +83,9 @@ describe('phone household navigation', () => {
     expect(screen.queryByRole('button', { name: 'Panic / SOS' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Spoken household alerts/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /More/ }));
-    for (const label of ['Safety', 'Notes', 'Announcements', 'Evening summary']) {
+    for (const label of ['Board', 'Home & safety', 'Rewards', 'Family']) {
       expect(
-        within(screen.getByRole('dialog')).getByRole('link', { name: new RegExp(label) }),
+        within(screen.getByRole('dialog')).getByRole('link', { name: new RegExp(`^${label.replace('&', '\\&')}`) }),
       ).toBeInTheDocument();
     }
   });

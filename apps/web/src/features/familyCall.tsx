@@ -8,8 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, IconTile } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
 
+export interface CallGroup {
+  id: string;
+  name: string;
+  url: string;
+}
 export interface FamilyCallSettings {
   whatsappCallUrl: string | null;
+  groups?: CallGroup[];
 }
 export const familyCallQueryKey = (householdId: string) => ['family-call', householdId] as const;
 
@@ -218,7 +224,104 @@ function HouseholdFamilyCallCard({ householdId, canManage }: { householdId: stri
         >
           WhatsApp call-link help <ExternalLink className="h-3 w-3" />
         </a>
+        {ready && (
+          <CallGroups
+            householdId={householdId}
+            canManage={canManage}
+            groups={settings.data.groups ?? []}
+          />
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+const slug = (name: string) =>
+  `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'group'}-${Date.now().toString(36).slice(-6)}`;
+
+/** Extra named call links (Friends, Grandparents, Cousins…). People outside FamilyHub join with the WhatsApp link itself. */
+function CallGroups({ householdId, canManage, groups }: { householdId: string; canManage: boolean; groups: CallGroup[] }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState('');
+  const [link, setLink] = useState('');
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+  const save = useMutation({
+    mutationFn: (next: CallGroup[]) =>
+      api<FamilyCallSettings>(hh(householdId, '/family-call/groups'), { method: 'PUT', body: { groups: next } }),
+    onSuccess: (data) => {
+      qc.setQueryData(familyCallQueryKey(householdId), data);
+      setName('');
+      setLink('');
+      setError('');
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+  const invite = useMutation({
+    mutationFn: (groupId: string) =>
+      api(hh(householdId, '/family-call/notify'), { method: 'POST', body: { groupId } }),
+    onSuccess: () => setStatus('Household members were notified. Share the link in your WhatsApp group for friends; each person taps Join.'),
+    onError: (err: Error) => setError(err.message),
+  });
+  const add = () => {
+    const parsed = whatsappCallUrlSchema.safeParse(link.trim());
+    if (!name.trim()) return setError('Give the group a name, for example Friends.');
+    if (!parsed.success) return setError('Paste a https://call.whatsapp.com/voice/… or /video/… link.');
+    if (groups.length >= 10) return setError('Up to 10 call groups.');
+    save.mutate([...groups, { id: slug(name), name: name.trim().slice(0, 40), url: parsed.data }]);
+  };
+  if (!groups.length && !canManage) return null;
+  return (
+    <section className="space-y-3 border-t pt-4" aria-label="Call groups">
+      <h3 className="text-sm font-semibold">Other call groups</h3>
+      <p className="text-xs text-muted-foreground">
+        Keep separate WhatsApp call links for friends, grandparents or other groups. Friends don’t need a FamilyHub account.
+      </p>
+      {groups.length > 0 && (
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {groups.map((g) => (
+            <li key={g.id} className="flex flex-wrap items-center gap-2 rounded-xl border p-3">
+              <span className="flex-1 font-semibold">{g.name}</span>
+              <Button asChild size="sm">
+                <a href={g.url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
+                  <Phone /> Join
+                </a>
+              </Button>
+              {canManage && (
+                <>
+                  <Button size="sm" variant="outline" disabled={invite.isPending} onClick={() => invite.mutate(g.id)}>
+                    Notify
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Remove ${g.name}`}
+                    disabled={save.isPending}
+                    onClick={() => save.mutate(groups.filter((x) => x.id !== g.id))}
+                  >
+                    Remove
+                  </Button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {status && <p role="status" className="text-sm">{status}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      {canManage && (
+        <form
+          className="grid gap-2 sm:grid-cols-[1fr_2fr_auto]"
+          onSubmit={(e) => {
+            e.preventDefault();
+            add();
+          }}
+        >
+          <Input aria-label="Group name" placeholder="Friends" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
+          <Input aria-label="Group call link" placeholder="https://call.whatsapp.com/video/…" value={link} onChange={(e) => setLink(e.target.value)} />
+          <Button type="submit" disabled={save.isPending}>Add group</Button>
+        </form>
+      )}
+    </section>
   );
 }

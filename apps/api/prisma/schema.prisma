@@ -184,16 +184,16 @@ enum DailySummaryStatus {
 // ───────────────────────── Identity & tenancy ─────────────────────────
 
 model User {
-  id              String    @id @default(uuid()) @db.Uuid
-  email           String    @unique
-  passwordHash    String?   @map("password_hash")
-  displayName     String    @map("display_name")
-  googleSubject   String?   @unique @map("google_subject")
-  emailVerifiedAt DateTime? @map("email_verified_at")
-  approvalStatus  String    @default("APPROVED") @map("approval_status")
-  approvalTokenHash String? @unique @map("approval_token_hash")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id                String    @id @default(uuid()) @db.Uuid
+  email             String    @unique
+  passwordHash      String?   @map("password_hash")
+  displayName       String    @map("display_name")
+  googleSubject     String?   @unique @map("google_subject")
+  emailVerifiedAt   DateTime? @map("email_verified_at")
+  approvalStatus    String    @default("APPROVED") @map("approval_status")
+  approvalTokenHash String?   @unique @map("approval_token_hash")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   memberships     HouseholdMember[]
   sessions        Session[]
@@ -210,17 +210,17 @@ model User {
 }
 
 model Household {
-  id           String   @id @default(uuid()) @db.Uuid
-  name         String
-  timezone     String   @default("UTC")
-  locale       String   @default("en-US")
-  weekStartsOn Int      @default(0) @map("week_starts_on")
-  pinHash      String?  @map("pin_hash")
-  settings     Json     @default("{}")
-  approvalStatus String @default("APPROVED") @map("approval_status")
-  approvalTokenHash String? @unique @map("approval_token_hash")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  timezone          String   @default("UTC")
+  locale            String   @default("en-US")
+  weekStartsOn      Int      @default(0) @map("week_starts_on")
+  pinHash           String?  @map("pin_hash")
+  settings          Json     @default("{}")
+  approvalStatus    String   @default("APPROVED") @map("approval_status")
+  approvalTokenHash String?  @unique @map("approval_token_hash")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   members              HouseholdMember[]
   invitations          Invitation[]
@@ -690,6 +690,7 @@ model Task {
   points           Int          @default(0)
   requiresApproval Boolean      @default(false) @map("requires_approval")
   rotate           Boolean      @default(false)
+  timesPerDay      Int          @default(1) @map("times_per_day")
   icon             String?
   checklist        Json         @default("[]")
   status           TaskStatus   @default(OPEN)
@@ -742,14 +743,19 @@ model EmergencySession {
 
 /// Author identity is derived from the authenticated household actor, never supplied by clients.
 model Note {
-  id             String   @id @default(uuid()) @db.Uuid
-  householdId    String   @map("household_id") @db.Uuid
-  title          String
-  body           String   @default("")
-  authorMemberId String?  @map("author_member_id") @db.Uuid
-  authorDeviceId String?  @map("author_device_id") @db.Uuid
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid()) @db.Uuid
+  householdId      String   @map("household_id") @db.Uuid
+  title            String
+  body             String   @default("")
+  authorMemberId   String?  @map("author_member_id") @db.Uuid
+  authorDeviceId   String?  @map("author_device_id") @db.Uuid
+  repeatDaily      Boolean  @default(false) @map("repeat_daily")
+  repeatDays       Int[]    @default([]) @map("repeat_days")
+  monthDays        Int[]    @default([]) @map("month_days")
+  dailyTimes       String[] @default([]) @map("daily_times")
+  lastNotifiedSlot String?  @map("last_notified_slot")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   household    Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
   authorMember HouseholdMember? @relation(fields: [householdId, authorMemberId], references: [householdId, id], onDelete: NoAction, onUpdate: NoAction)
@@ -760,6 +766,7 @@ model Note {
   @@index([householdId, updatedAt])
   @@index([householdId, authorMemberId])
   @@index([householdId, authorDeviceId])
+  @@index([repeatDaily])
   @@map("notes")
 }
 
@@ -816,6 +823,7 @@ model HouseholdFeatureSettings {
   dailySummaryEnabled Boolean  @default(true) @map("daily_summary_enabled")
   dailySummaryTime    String   @default("20:30") @map("daily_summary_time")
   whatsappCallUrl     String?  @map("whatsapp_call_url")
+  callGroups          Json     @default("[]") @map("call_groups")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
@@ -1023,7 +1031,13 @@ model Announcement {
   dailyTime             String?              @map("daily_time")
   /// ISO weekdays (1=Mon..7=Sun); empty means every day.
   repeatDays            Int[]                @default([]) @map("repeat_days")
+  /// Days of month (1..31); non-empty means a monthly schedule.
+  monthDays             Int[]                @default([]) @map("month_days")
+  /// Local times (HH:mm); supersedes dailyTime when non-empty.
+  dailyTimes            String[]             @default([]) @map("daily_times")
   lastNotifiedLocalDate DateTime?            @map("last_notified_local_date") @db.Date
+  /// Last delivered slot as YYYY-MM-DDTHH:mm in the household timezone.
+  lastNotifiedSlot      String?              @map("last_notified_slot")
   authorId              String?              @map("author_id") @db.Uuid
   createdAt             DateTime             @default(now()) @map("created_at")
   updatedAt             DateTime             @updatedAt @map("updated_at")

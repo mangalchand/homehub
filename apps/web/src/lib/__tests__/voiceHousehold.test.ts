@@ -45,7 +45,7 @@ describe('announcement authority', () => {
   it('posts only through the existing secured endpoint after fresh session validation', async () => {
     vi.mocked(api).mockResolvedValueOnce(device(true)).mockResolvedValueOnce({});
     expect(await runVoiceCommand('h', { kind: 'announce', title: 'Dinner is ready' }, 'UTC')).toContain('Announcement posted');
-    expect(api).toHaveBeenLastCalledWith('/api/v1/households/h/announcements', { method: 'POST', body: { title: 'Dinner is ready', priority: 'NORMAL', pinned: false, repeatDaily: false, repeatDays: [] } });
+    expect(api).toHaveBeenLastCalledWith('/api/v1/households/h/announcements', { method: 'POST', body: expect.objectContaining({ title: 'Dinner is ready', priority: 'NORMAL', pinned: false, repeatDaily: false }) });
   });
   it('does not turn backend rejection or expired PIN into success', async () => {
     vi.mocked(api).mockResolvedValueOnce(device(true)).mockRejectedValueOnce(new ApiRequestError(403, 'FORBIDDEN', 'Enter PIN'));

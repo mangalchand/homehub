@@ -6,6 +6,7 @@ import { dailySummaryPayloadSchema, type DailySummaryPayload, type DailySummaryR
 import { prisma } from '../db.js';
 import { expandOccurrences } from '../calendar/recurrence.js';
 import { pointBalances } from '../routes/tasks.js';
+import { writeNarrative } from '../lib/aiSummary.js';
 import { notificationPrefs, notify, vapidKeys } from '../lib/notify.js';
 import { fcmConfigured, sendFcm } from '../lib/fcm.js';
 import { realtime } from '../lib/realtime.js';
@@ -81,6 +82,7 @@ export async function buildEveningSummary(household: Pick<Household, 'id' | 'nam
   const taskLines: string[] = [];
   const choreLines: string[] = [];
   let overdue = 0;
+  const pendingByMember = new Map<string, number>();
   for (const task of tasks) {
     const title = clean(task.title);
     if (task.kind === 'TASK' && !task.rrule) {
@@ -93,7 +95,9 @@ export async function buildEveningSummary(household: Pick<Household, 'id' | 'nam
     const dates = task.rrule
       ? expandOccurrences({ startAt: anchor.toJSDate(), endAt: anchor.toJSDate(), timezone: household.timezone, allDay: false, rrule: task.rrule, exdates: [] }, anchor.toJSDate(), end.toJSDate(), Number.MAX_SAFE_INTEGER).map((o) => DateTime.fromJSDate(o.start, { zone: household.timezone }).toISODate()!)
       : [anchor.toISODate()!];
-    const done = new Set(task.completions.map((c) => `${c.occurrenceKey}:${c.memberId}`));
+    const doneCount = new Map<string, number>();
+    for (const c of task.completions) { const k = `${c.occurrenceKey.split('#')[0]}:${c.memberId}`; doneCount.set(k, (doneCount.get(k) ?? 0) + 1); }
+    const done = { has: (k: string) => (doneCount.get(k) ?? 0) >= task.timesPerDay };
     const assignments = task.assignments.map((a) => a.memberId);
     const seenDates = new Set<string>();
     dates.forEach((occurrenceDate, index) => {
@@ -103,8 +107,9 @@ export async function buildEveningSummary(household: Pick<Household, 'id' | 'nam
       const assigned = task.rotate && assignments.length > 1 ? [assignments[index % assignments.length]!] : assignments;
       const eligible = (assigned.length ? assigned : members.map((m) => m.id)).filter((id) => active.has(id));
       const pending = eligible.filter((id) => !done.has(`${key}:${id}`));
+      for (const id of pending) pendingByMember.set(id, (pendingByMember.get(id) ?? 0) + 1);
       if (eligible.length && !pending.length) return;
-      if (!eligible.length && task.completions.some((c) => c.occurrenceKey === key)) return;
+      if (!eligible.length && task.completions.some((c) => c.occurrenceKey.split('#')[0] === key)) return;
       const names = pending.map((id) => clean(active.get(id)!.displayName)).join(', ');
       const who = names.length > 160 ? `${names.slice(0, 160)}… (${pending.length} pending members total)` : names || 'no active assignee';
       const late = occurrenceDate < date;
@@ -115,6 +120,18 @@ export async function buildEveningSummary(household: Pick<Household, 'id' | 'nam
   let totalEarned = 0;
   let totalToday = 0;
   let totalAvailable = 0;
+  const people = members.slice(0, 100).map((m) => {
+    const balance = balances.get(m.id) ?? { balance: 0, available: 0 };
+    return {
+      memberId: m.id,
+      name: clean(m.displayName).slice(0, 120),
+      avatarUrl: m.avatarUrl && m.avatarUrl.length <= 2000 ? m.avatarUrl : null,
+      today: todayEarned.find((r) => r.memberId === m.id)?._sum.points ?? 0,
+      total: earned.find((r) => r.memberId === m.id)?._sum.points ?? 0,
+      available: balance.available,
+      pendingChores: pendingByMember.get(m.id) ?? 0,
+    };
+  });
   const pointLines = members.map((m) => {
     const lifetime = earned.find((r) => r.memberId === m.id)?._sum.points ?? 0;
     const today = todayEarned.find((r) => r.memberId === m.id)?._sum.points ?? 0;
@@ -122,7 +139,7 @@ export async function buildEveningSummary(household: Pick<Household, 'id' | 'nam
     totalEarned += lifetime;
     totalToday += today;
     totalAvailable += balance.available;
-    return `- ${clean(m.displayName)}: earned today ${today}; earned total ${lifetime}; balance ${balance.balance}; available ${balance.available}`;
+    return `• ${clean(m.displayName)} — today +${today} · total ${lifetime} · available ${balance.available} · chores left ${pendingByMember.get(m.id) ?? 0}`;
   });
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const topPoints = members.slice(0, 6).map((m) => `${clean(m.displayName)} ${balances.get(m.id)?.available ?? 0}`).join(', ');
@@ -134,17 +151,21 @@ export async function buildEveningSummary(household: Pick<Household, 'id' | 'nam
     `${plural(totalToday, 'point')} earned today.`,
     members.length ? `Points available: ${topPoints}${members.length > 6 ? `, and ${members.length - 6} more` : ''}.` : '',
   ].filter(Boolean).join(' ');
+  const ai = await writeNarrative({ household: clean(household.name).slice(0, 80), date, tasks: taskLines.slice(0, 20), chores: choreLines.slice(0, 30), overdue, people });
   return dailySummaryPayloadSchema.parse({
     title: `Daily household summary — ${date}`,
     generatedAt: now.toISOString(),
+    people,
+    narrative: ai?.text ?? spoken,
+    aiGenerated: Boolean(ai),
     body: [
-      spoken,
+      ai?.text ?? spoken,
+      section('Points by person', pointLines, 3500),
       `${clean(household.name).slice(0, 200)} · ${date} · ${household.timezone}`,
       `Totals: ${taskLines.length} pending one-off tasks; ${choreLines.length} due/overdue chore occurrences (${overdue} overdue); ${members.length} active, unexpired members.`,
       `Points totals: ${totalToday} earned today; ${totalEarned} earned total; ${totalAvailable} available.`,
       section('Pending one-off tasks (including future/undated)', taskLines, 6500),
       section('Pending chores / recurring tasks (one line per occurrence)', choreLines, 8000),
-      section('Member points', pointLines, 3500),
       'Earnings count approved EARN entries only; available = approved ledger balance minus pending reward reservations. Pending approvals are not earned. Chore submissions awaiting approval are not listed as unfinished for that member. Unassigned chores apply to each active member; rotation follows occurrence order. Counts include all records even when lines are omitted.',
       SUMMARY_DELIVERY_NOTE,
     ].join('\n\n'),

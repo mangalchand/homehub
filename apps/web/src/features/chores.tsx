@@ -22,9 +22,12 @@ export function useUndoCompletion() {
 export function ChoreTile({ task, member, compact, onEdit }: { task: Task; member: MemberDTO; compact?: boolean; onEdit?: (task: Task) => void }) {
   const complete = useCompleteChore();
   const undo = useUndoCompletion();
-  const mine = task.completions.find((c) => c.memberId === member.id);
+  const all = task.completions.filter((c) => c.memberId === member.id);
+  const goal = task.timesPerDay ?? 1;
+  const mine = all.length >= goal ? all[all.length - 1] : undefined;
   const done = Boolean(mine);
   const pending = mine?.status === 'PENDING_APPROVAL';
+  const progress = goal > 1 ? `${Math.min(all.length, goal)}/${goal} today` : '';
   const onClick = () => {
     if (mine) {
       undo.mutate(mine.id, { onError: (e) => toast.error((e as Error).message) });
@@ -63,6 +66,7 @@ export function ChoreTile({ task, member, compact, onEdit }: { task: Task; membe
       <span className="min-w-0 flex-1">
         <span className={cn('block font-medium leading-snug', done && 'text-muted-foreground line-through')}>{task.title}</span>
         {pending && <span className="text-xs text-amber-600">Waiting for approval</span>}
+        {progress && !done && <span className="text-xs text-muted-foreground">{progress}</span>}
       </span>
       {task.points > 0 && (
         <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
@@ -79,7 +83,7 @@ export function ChoreTile({ task, member, compact, onEdit }: { task: Task; membe
 
 export function MemberChoreColumn({ member, tasks, points, compact, onEdit }: { member: MemberDTO; tasks: Task[]; points?: number; compact?: boolean; onEdit?: (task: Task) => void }) {
   const mine = tasks.filter((t) => t.dueOnDate && (t.currentAssigneeIds.length ? t.currentAssigneeIds.includes(member.id) : true));
-  const doneCount = mine.filter((t) => t.completions.some((c) => c.memberId === member.id)).length;
+  const doneCount = mine.filter((t) => t.completions.filter((c) => c.memberId === member.id).length >= (t.timesPerDay ?? 1)).length;
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex items-center gap-2">

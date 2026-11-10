@@ -7,7 +7,7 @@ import { retryPendingPushes, runDueSyncs } from '../calendar/sync.js';
 import { runEveningSummaries } from './eveningSummary.js';
 import { cleanupExpiredEmergencySessions } from '../routes/safety.js';
 import { retryAttachmentObjectCleanup } from '../lib/attachments.js';
-import { runDailyAnnouncements } from './dailyAnnouncements.js';
+import { runDailyAnnouncements, runNoteReminders } from './dailyAnnouncements.js';
 
 /** Create in-app reminder notifications for events starting soon. Dedupe keys make this idempotent. */
 export async function generateEventReminders(now = new Date(), horizonMinutes = 24 * 60) {
@@ -80,6 +80,8 @@ export function startScheduler() {
   every(60_000, 'event-reminders', () => generateEventReminders());
   every(60_000, 'daily-announcements', () => runDailyAnnouncements());
   void safely('daily-announcements-startup', () => runDailyAnnouncements());
+  every(60_000, 'note-reminders', () => runNoteReminders());
+  void safely('note-reminders-startup', () => runNoteReminders());
   every(60_000, 'evening-summary', () => runEveningSummaries());
   void safely('evening-summary-catchup', () => runEveningSummaries());
   every(60_000, 'safety-expiry', () => cleanupExpiredEmergencySessions());

@@ -454,8 +454,10 @@ export function homeRouter() {
           pinned: body.pinned,
           expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
           repeatDaily: body.repeatDaily,
-          dailyTime: body.repeatDaily ? (body.dailyTime ?? null) : null,
+          dailyTime: body.repeatDaily ? (body.dailyTimes[0] ?? body.dailyTime ?? null) : null,
+          dailyTimes: body.repeatDaily ? [...body.dailyTimes].sort() : [],
           repeatDays: body.repeatDaily ? [...body.repeatDays].sort() : [],
+          monthDays: body.repeatDaily ? [...body.monthDays].sort((x, y) => x - y) : [],
           authorId: c.actor.kind === 'member' ? c.actor.memberId : null,
         },
       });
@@ -500,6 +502,8 @@ export function homeRouter() {
         repeatDaily: body.repeatDaily ?? current.repeatDaily,
         dailyTime: body.dailyTime === undefined ? current.dailyTime : body.dailyTime,
         repeatDays: body.repeatDays ?? (body.repeatDaily === false ? [] : current.repeatDays),
+        monthDays: body.monthDays ?? (body.repeatDaily === false ? [] : current.monthDays),
+        dailyTimes: body.dailyTimes ?? (body.repeatDaily === false || body.dailyTime === null ? [] : body.dailyTime ? [body.dailyTime] : current.dailyTimes),
       });
       if (!parsed.success)
         throw badRequest(parsed.error.issues[0]?.message ?? 'Invalid announcement schedule.');
@@ -514,8 +518,10 @@ export function homeRouter() {
           pinned: value.pinned,
           expiresAt: value.expiresAt ? new Date(value.expiresAt) : null,
           repeatDaily: value.repeatDaily,
-          dailyTime: value.repeatDaily ? (value.dailyTime ?? null) : null,
+          dailyTime: value.repeatDaily ? (value.dailyTimes[0] ?? value.dailyTime ?? null) : null,
+          dailyTimes: value.repeatDaily ? [...value.dailyTimes].sort() : [],
           repeatDays: value.repeatDaily ? [...value.repeatDays].sort() : [],
+          monthDays: value.repeatDaily ? [...value.monthDays].sort((x, y) => x - y) : [],
         },
       });
       realtime.publish(c.householdId, { type: 'announcements.changed' });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scheduleFields, scheduleIssues } from './schedule';
 
 export const IMAGE_ATTACHMENT_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
@@ -24,13 +25,15 @@ export const updateEmergencyLocationSchema = emergencyLocationSchema;
 export type EmergencyLocation = z.infer<typeof emergencyLocationSchema>;
 export type CreateEmergencySessionInput = z.infer<typeof createEmergencySessionSchema>;
 
-export const createNoteSchema = z
+const noteFields = z
   .object({
     title: z.string().trim().min(1).max(200),
     body: z.string().max(10_000).default(''),
   })
+  .merge(scheduleFields)
   .strict();
-export const updateNoteSchema = createNoteSchema.partial();
+export const createNoteSchema = noteFields.superRefine((value, ctx) => scheduleIssues(value, ctx));
+export const updateNoteSchema = noteFields.partial();
 export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
 
@@ -74,6 +77,24 @@ export const dailySummaryPayloadSchema = z
     title: z.string().min(1).max(200),
     body: z.string().max(20_000),
     generatedAt: isoDateTime,
+    /** Points per person, for the table view. Absent on snapshots saved before this field existed. */
+    people: z
+      .array(
+        z.object({
+          memberId: z.string(),
+          name: z.string().max(120),
+          avatarUrl: z.string().max(2000).nullable(),
+          today: z.number().int(),
+          total: z.number().int(),
+          available: z.number().int(),
+          pendingChores: z.number().int().min(0),
+        }).strict(),
+      )
+      .max(100)
+      .optional(),
+    /** Short narrative; `aiGenerated` is true only when an AI model actually wrote it. */
+    narrative: z.string().max(2000).optional(),
+    aiGenerated: z.boolean().optional(),
   })
   .strict();
 export type DailySummaryPayload = z.infer<typeof dailySummaryPayloadSchema>;
@@ -114,6 +135,10 @@ export interface NoteDTO {
   body: string;
   authorMemberId: string | null;
   authorDeviceId: string | null;
+  repeatDaily: boolean;
+  repeatDays: number[];
+  monthDays: number[];
+  dailyTimes: string[];
   createdAt: string;
   updatedAt: string;
   attachments: AttachmentDTO[];

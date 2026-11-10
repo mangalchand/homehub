@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Megaphone, Mic, Pencil, Pin, Trash2 } from 'lucide-react';
-import { createAnnouncementSchema } from '@familyhub/shared';
+import { createAnnouncementSchema, describeSchedule } from '@familyhub/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, hh } from '@/lib/api';
 import { useAnnouncements, useHid, useHousehold, useMe, type Announcement } from '@/lib/queries';
@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { Badge, PageHeader } from '@/components/ui/misc';
+import { ScheduleEditor, emptySchedule, scheduleForSubmit } from '@/components/ScheduleEditor';
 
 const emptyDraft = {
   title: '',
@@ -26,13 +27,8 @@ const emptyDraft = {
   priority: 'NORMAL' as Announcement['priority'],
   pinned: false,
   expiresAt: '',
-  repeatDaily: false,
-  dailyTime: '20:30',
-  repeatDays: [] as number[],
+  schedule: emptySchedule,
 };
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const repeatLabel = (days: number[] | undefined) =>
-  !days?.length || days.length === 7 ? 'every day' : `every ${days.map((d) => WEEKDAYS[d - 1]).join(', ')}`;
 
 export default function AnnouncementsPage() {
   const hid = useHid();
@@ -138,9 +134,12 @@ function AnnouncementsContent({ householdId: hid, scope }: { householdId: string
       priority: a.priority,
       pinned: a.pinned,
       expiresAt: a.expiresAt ? toTzInput(new Date(a.expiresAt), timezone, false) : '',
-      repeatDaily: a.repeatDaily,
-      dailyTime: a.dailyTime ?? '20:30',
-      repeatDays: a.repeatDays ?? [],
+      schedule: {
+        repeatDaily: a.repeatDaily,
+        repeatDays: a.repeatDays ?? [],
+        monthDays: a.monthDays ?? [],
+        dailyTimes: a.dailyTimes?.length ? a.dailyTimes : a.dailyTime ? [a.dailyTime] : [],
+      },
     });
   };
   const submit = () => {
@@ -155,10 +154,12 @@ function AnnouncementsContent({ householdId: hid, scope }: { householdId: string
       }
       expiresAt = date.toISOString();
     }
+    const { schedule, ...rest } = draft;
+    const normalized = scheduleForSubmit({ ...schedule, dailyTimes: schedule.dailyTimes.length ? schedule.dailyTimes : ['20:30'] });
     const parsed = createAnnouncementSchema.safeParse({
-      ...draft,
-      dailyTime: draft.repeatDaily ? draft.dailyTime : null,
-      repeatDays: draft.repeatDaily && draft.repeatDays.length < 7 ? draft.repeatDays : [],
+      ...rest,
+      ...normalized,
+      dailyTime: normalized.dailyTimes[0] ?? null,
       expiresAt,
     });
     if (!parsed.success) {
@@ -255,70 +256,8 @@ function AnnouncementsContent({ householdId: hid, scope }: { householdId: string
                 />
                 Pin announcement
               </label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Repeat">
-                  <Select
-                    value={!draft.repeatDaily ? 'none' : draft.repeatDays.length ? 'weekly' : 'daily'}
-                    disabled={working}
-                    onChange={(e) => {
-                      const mode = e.target.value;
-                      setDraft({
-                        ...draft,
-                        repeatDaily: mode !== 'none',
-                        repeatDays:
-                          mode === 'weekly'
-                            ? draft.repeatDays.length
-                              ? draft.repeatDays
-                              : [((new Date().getDay() + 6) % 7) + 1]
-                            : [],
-                      });
-                    }}
-                  >
-                    <option value="none">Does not repeat</option>
-                    <option value="daily">Every day</option>
-                    <option value="weekly">Weekly on chosen days</option>
-                  </Select>
-                </Field>
-                {draft.repeatDaily && (
-                  <Field label={`Announcement time (${timezone})`}>
-                    <Input
-                      type="time"
-                      value={draft.dailyTime}
-                      disabled={working}
-                      required
-                      onChange={(e) => setDraft({ ...draft, dailyTime: e.target.value })}
-                    />
-                  </Field>
-                )}
-              </div>
-              {draft.repeatDaily && draft.repeatDays.length > 0 && (
-                <div role="group" aria-label="Repeat on days" className="flex flex-wrap gap-2">
-                  {WEEKDAYS.map((label, i) => {
-                    const day = i + 1;
-                    const on = draft.repeatDays.includes(day);
-                    return (
-                      <button
-                        key={label}
-                        type="button"
-                        aria-pressed={on}
-                        disabled={working || (on && draft.repeatDays.length === 1)}
-                        onClick={() =>
-                          setDraft({
-                            ...draft,
-                            repeatDays: on
-                              ? draft.repeatDays.filter((d) => d !== day)
-                              : [...draft.repeatDays, day].sort(),
-                          })
-                        }
-                        className={`min-w-12 rounded-full border px-3 py-1.5 text-sm ${on ? 'border-primary bg-primary/10 font-semibold' : 'opacity-70'}`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {draft.repeatDaily && (
+              <ScheduleEditor value={draft.schedule} onChange={(schedule) => setDraft({ ...draft, schedule })} disabled={working} timezone={timezone} />
+              {draft.schedule.repeatDaily && (
                 <p className="text-xs text-muted-foreground">
                   At the chosen time every paired home display with spoken alerts on reads it aloud, using the voice
                   set in Settings.
@@ -399,9 +338,9 @@ function AnnouncementsContent({ householdId: hid, scope }: { householdId: string
                 {a.body && (
                   <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{a.body}</p>
                 )}
-                {a.repeatDaily && a.dailyTime && (
+                {a.repeatDaily && (
                   <p className="text-xs text-muted-foreground">
-                    Repeats {repeatLabel(a.repeatDays)} at {a.dailyTime} ({timezone})
+                    {describeSchedule({ repeatDaily: true, repeatDays: a.repeatDays ?? [], monthDays: a.monthDays ?? [], dailyTimes: a.dailyTimes ?? [] }, a.dailyTime)} ({timezone})
                   </p>
                 )}
                 {a.expiresAt && (

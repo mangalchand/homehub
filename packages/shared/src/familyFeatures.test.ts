@@ -45,7 +45,7 @@ describe('family foundation contracts', () => {
   });
 
   it('validates note limits and excludes client-supplied author and household identity', () => {
-    expect(createNoteSchema.parse({ title: ' Shopping ' })).toEqual({ title: 'Shopping', body: '' });
+    expect(createNoteSchema.parse({ title: ' Shopping ' })).toMatchObject({ title: 'Shopping', body: '' });
     expect(updateNoteSchema.parse({ title: 'Updated' })).toEqual({ title: 'Updated' });
     for (const note of [
       { title: ' ' },

@@ -16,10 +16,29 @@ import { cn } from '@/lib/utils';
 const REPEAT: Record<string, string> = {
   '': 'Does not repeat',
   'FREQ=DAILY': 'Every day',
-  'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR': 'Weekdays',
-  'FREQ=WEEKLY;BYDAY=SA,SU': 'Weekends',
+  'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR': 'Weekdays (Mon–Fri)',
+  'FREQ=WEEKLY;BYDAY=SA,SU': 'Weekends (Sat–Sun)',
   'FREQ=WEEKLY': 'Every week (same day)',
+  WEEKLY_DAYS: 'Weekly on chosen days',
+  MONTHLY: 'Monthly on a date',
 };
+const BYDAY = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+const BYDAY_LABEL = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+/** Maps a stored RRULE to the selector value plus its chosen weekdays / month date. */
+function parseRepeat(rrule: string | null | undefined) {
+  const rule = (rrule ?? '').replace(/^RRULE:/, '');
+  if (rule in REPEAT) return { mode: rule, days: [] as string[], monthDay: 1 };
+  const byday = /FREQ=WEEKLY;BYDAY=([A-Z,]+)/.exec(rule);
+  if (byday) return { mode: 'WEEKLY_DAYS', days: byday[1]!.split(','), monthDay: 1 };
+  const monthly = /FREQ=MONTHLY;BYMONTHDAY=(\d+)/.exec(rule);
+  if (monthly) return { mode: 'MONTHLY', days: [], monthDay: Number(monthly[1]) };
+  return { mode: rule ? 'FREQ=DAILY' : '', days: [], monthDay: 1 };
+}
+export function buildRrule(mode: string, days: string[], monthDay: number) {
+  if (mode === 'WEEKLY_DAYS') return `FREQ=WEEKLY;BYDAY=${BYDAY.filter((d) => days.includes(d)).join(',') || BYDAY[0]}`;
+  if (mode === 'MONTHLY') return `FREQ=MONTHLY;BYMONTHDAY=${Math.min(31, Math.max(1, monthDay))}`;
+  return mode;
+}
 
 function TaskDialog({
   open,
@@ -40,7 +59,8 @@ function TaskDialog({
     title: task?.title ?? '',
     description: task?.description ?? '',
     points: task?.points ?? 10,
-    rrule: task ? (task.rrule ?? '') : 'FREQ=DAILY',
+    ...parseRepeat(task ? task.rrule : kind === 'CHORE' ? 'FREQ=DAILY' : ''),
+    timesPerDay: task?.timesPerDay ?? 1,
     memberIds: task?.memberIds ?? ([] as string[]),
     requiresApproval: task?.requiresApproval ?? false,
     rotate: task?.rotate ?? false,
@@ -58,7 +78,8 @@ function TaskDialog({
           memberIds: f.memberIds,
           priority: f.priority,
           points: kind === 'CHORE' ? f.points : (saved?.points ?? 0),
-          rrule: kind === 'CHORE' ? f.rrule || null : (saved?.rrule ?? null),
+          rrule: buildRrule(f.mode, f.days, f.monthDay) || null,
+          timesPerDay: f.timesPerDay,
           requiresApproval: kind === 'CHORE' ? f.requiresApproval : (saved?.requiresApproval ?? false),
           rotate: kind === 'CHORE' ? f.rotate : (saved?.rotate ?? false),
           dueAt:
@@ -66,6 +87,8 @@ function TaskDialog({
               ? saved
                 ? saved.dueAt
                 : new Date().toISOString()
+              : f.mode && !f.dueAt && !task
+                ? new Date().toISOString()
               : task && f.dueAt === localDue
                 ? task.dueAt
                 : f.dueAt
@@ -147,18 +170,48 @@ function TaskDialog({
             })}
           </div>
         </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Repeats">
+            <Select value={f.mode} onChange={(e) => setF({ ...f, mode: e.target.value, days: f.days.length ? f.days : [BYDAY[(new Date().getDay() + 6) % 7]!], monthDay: f.monthDay || new Date().getDate() })}>
+              {Object.entries(REPEAT).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          {f.mode && (
+            <Field label="Times per day">
+              <Select value={f.timesPerDay} onChange={(e) => setF({ ...f, timesPerDay: Number(e.target.value) })}>
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <option key={n} value={n}>
+                    {n === 1 ? 'Once a day' : `${n} times a day`}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+        </div>
+        {f.mode === 'WEEKLY_DAYS' && (
+          <div role="group" aria-label="Repeat on days" className="flex flex-wrap gap-2">
+            {BYDAY.map((d, i) => {
+              const on = f.days.includes(d);
+              return (
+                <button key={d} type="button" aria-pressed={on} disabled={on && f.days.length === 1} onClick={() => setF({ ...f, days: on ? f.days.filter((x) => x !== d) : [...f.days, d] })} className={cn('min-w-12 rounded-full border px-3 py-1.5 text-sm', on ? 'border-primary bg-primary/10 font-semibold' : 'opacity-70')}>
+                  {BYDAY_LABEL[i]}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {f.mode === 'MONTHLY' && (
+          <Field label="Day of month">
+            <Input type="number" min={1} max={31} value={f.monthDay} onChange={(e) => setF({ ...f, monthDay: Number(e.target.value) })} />
+          </Field>
+        )}
         {kind === 'CHORE' ? (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Repeats">
-                <Select value={f.rrule} onChange={(e) => setF({ ...f, rrule: e.target.value })}>
-                  {Object.entries(REPEAT).map(([v, l]) => (
-                    <option key={v} value={v}>
-                      {l}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
               <Field label="Points">
                 <Input
                   type="number"
@@ -229,7 +282,10 @@ function TaskDialog({
               title: '',
               description: '',
               points: 10,
-              rrule: 'FREQ=DAILY',
+              mode: 'FREQ=DAILY',
+              days: [],
+              monthDay: 1,
+              timesPerDay: 1,
               memberIds: [],
               requiresApproval: false,
               rotate: false,

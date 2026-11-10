@@ -259,7 +259,7 @@ describe('summary tasks, recurrences and ledger semantics', () => {
     ] });
     const { body } = await buildEveningSummary(household, evening);
     expect(body).toContain('1 active, unexpired members');
-    expect(body).toContain('Owner: earned today 100; earned total 150; balance 125; available 105');
+    expect(body).toMatch(/Owner — today \+100 · total 150 · available 105 · chores left \d+/);
     expect(body).toContain('Points totals: 100 earned today; 150 earned total; 105 available');
     expect(body).not.toContain('Inactive:');
     expect(body).not.toContain('Expired:');
