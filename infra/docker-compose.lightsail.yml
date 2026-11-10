@@ -1,0 +1,71 @@
+# Low-cost stack on one Lightsail server: Caddy (HTTPS) -> web (nginx + PWA) -> api, plus worker,
+# with Postgres in a container (data on the pgdata volume, nightly dumps in /opt/familyhub/backups).
+# Deployed by deploy/deploy-lightsail.ps1 (source is unpacked to /opt/familyhub/src).
+services:
+  db:
+    image: postgres:16-alpine
+    env_file: .db.env
+    command: ['postgres', '-c', 'shared_buffers=64MB', '-c', 'max_connections=40']
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    logging: { driver: json-file, options: { max-size: 10m, max-file: '3' } }
+
+  api:
+    image: familyhub-api:latest
+    build: { context: ./src, dockerfile: infra/api.Dockerfile }
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      WORKER_MODE: 'off'
+      ENABLE_DEMO_PROVIDER: 'false'
+      COOKIE_SECURE: 'true'
+      TRUST_PROXY: '2'
+      UPLOAD_DIR: /data/uploads
+    volumes: [uploads:/data/uploads, ./secrets:/run/familyhub:ro]
+    depends_on:
+      db: { condition: service_healthy }
+    restart: unless-stopped
+    logging: { driver: json-file, options: { max-size: 10m, max-file: '5' } }
+
+  worker:
+    image: familyhub-api:latest
+    command: ['node', 'dist/worker.js']
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      ENABLE_DEMO_PROVIDER: 'false'
+      UPLOAD_DIR: /data/uploads
+    volumes: [uploads:/data/uploads, ./secrets:/run/familyhub:ro]
+    healthcheck: { disable: true }
+    depends_on: [api]
+    restart: unless-stopped
+    logging: { driver: json-file, options: { max-size: 10m, max-file: '5' } }
+
+  web:
+    image: familyhub-web:latest
+    build: { context: ./src, dockerfile: infra/web.Dockerfile }
+    depends_on: [api]
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports: ['80:80', '443:443']
+    environment:
+      SITE_HOST: ${SITE_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:
+  caddy_config:
