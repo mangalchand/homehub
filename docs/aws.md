@@ -1,4 +1,24 @@
-# AWS deployment (current production)
+# AWS deployment
+
+## Low-cost option: Lightsail (~$7–8/month)
+
+[`deploy/deploy-lightsail.ps1`](../deploy/deploy-lightsail.ps1) runs the whole stack on one Lightsail `micro_3_0` server (1 GB RAM, 40 GB SSD, public IPv4 included, $7/month) with Postgres 16 in a container instead of RDS ([`infra/docker-compose.lightsail.yml`](../infra/docker-compose.lightsail.yml)).
+
+| Piece | Resource |
+| --- | --- |
+| Server | Lightsail `familyhub-ls` (Ubuntu 24.04, 4 GB swap), static IP `familyhub-ip` |
+| Database | `db` container, data on the `pgdata` volume |
+| Backups | Nightly `pg_dump` + photo archive in `/opt/familyhub/backups` (14 days, [`infra/pg-backup.sh`](../infra/pg-backup.sh)) and daily Lightsail snapshots (7 kept, ~$0.05/GB-month) |
+| Email | Lightsail has no instance role: SES uses `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` of a send-email-only IAM user in `deploy/secrets.env` |
+
+```cmd
+powershell -ExecutionPolicy Bypass -File deploy\deploy-lightsail.ps1            :: deploy / update
+powershell -ExecutionPolicy Bypass -File deploy\deploy-lightsail.ps1 -NoWorker  :: test copy, background jobs off
+```
+
+Set `DOMAIN` in `deploy/familyhub.config` (A record pointing at the static IP) before the real cutover; the sslip.io address changes with the IP. Keep `encryption-key.txt` (copied from the old server) in `STATE_DIR` so stored provider tokens stay readable.
+
+## EC2 + RDS (original setup)
 
 | Piece | Resource |
 | --- | --- |
