@@ -39,6 +39,7 @@ import { queryClient } from '@/lib/queryClient';
 import { cn } from '@/lib/utils';
 import { useUi } from '@/store/ui';
 import { useT } from '@/lib/i18n';
+import { useHomeAlertForwarding } from '@/lib/homeAlerts';
 import { Button } from './ui/button';
 import { Dialog } from './ui/dialog';
 import { Input } from './ui/input';
@@ -192,6 +193,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const me = useMe().data!;
   const t = useT();
   const household = useHousehold().data;
+  useHomeAlertForwarding(household?.id);
   const myMemberId = me.memberships.find((x) => x.householdId === household?.id)?.memberId;
   const myPhoto = useMembers().data?.find((m) => m.id === myMemberId)?.avatarUrl ?? null;
   const { isDevice, elevated } = useRole();

@@ -24,6 +24,16 @@
 
         </activity>
 
+        <service
+            android:name=".HomeAlertListener"
+            android:label="FamilyHub home alerts"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

@@ -33,6 +33,7 @@ import { Badge, PageHeader, Switch } from '@/components/ui/misc';
 import { NotificationsSection } from '@/features/notificationSettings';
 import { SafetyLocationSetting } from '@/features/safety';
 import { LanguageSection } from '@/lib/i18n';
+import { HomeAlertsSetting } from '@/lib/homeAlerts';
 import { SpokenAlertsControl, VoicePreferencesControl } from '@/features/spokenAlerts';
 import { AlexaSection } from '@/features/alexa';
 
@@ -533,6 +534,7 @@ export default function SettingsPage() {
       <NotificationsSection />
       <SafetyLocationSetting />
       <SpokenAlertsControl />
+      <HomeAlertsSetting />
       <VoicePreferencesControl />
       {!isDevice && <AlexaSection />}
       {!isDevice && <CalendarsSection />}

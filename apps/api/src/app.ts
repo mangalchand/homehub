@@ -25,6 +25,7 @@ import { notesRouter } from './routes/notes.js';
 import { attachmentsRouter } from './routes/attachments.js';
 import { summariesRouter } from './routes/summaries.js';
 import { familyCallRouter } from './routes/familyCall.js';
+import { deviceAlertsRouter } from './routes/deviceAlerts.js';
 import { alexaLinksRouter, alexaRouter } from './routes/alexa.js';
 import { logger } from './logger.js';
 
@@ -91,6 +92,7 @@ export function createApp() {
   app.use(scoped, attachmentsRouter());
   app.use(scoped, summariesRouter());
   app.use(scoped, familyCallRouter());
+  app.use(scoped, deviceAlertsRouter());
   app.use(scoped, alexaLinksRouter());
 
   const doc = buildOpenApiDocument();
