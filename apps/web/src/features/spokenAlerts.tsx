@@ -4,7 +4,8 @@ import { Volume2, Square } from 'lucide-react';
 import { api, hh } from '@/lib/api';
 import { useHid, useMe } from '@/lib/queries';
 import { currentVoiceSession, deviceNotifications, householdActor, notificationReading, readNotifications, readPoints, voiceError, voiceScope, type FeedNotification } from '@/lib/voice/household';
-import { isListening, isSpeaking, speak, stopSpeaking } from '@/lib/voice/speech';
+import { isListening, isSpeaking, loadVoicePrefs, saveVoicePrefs, speak, stopSpeaking, type VoicePrefs } from '@/lib/voice/speech';
+import { Field, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { isNativeApp } from '@/lib/nativePush';
 
@@ -162,7 +163,7 @@ function DeviceSpokenAlerts({ householdId: hid, deviceId }: { householdId: strin
     if (!enabled || !armed || !notifications.data || notifications.isFetching) return;
     const fresh = tracker.current.accept(notifications.data);
     // Drop, rather than queue, arrivals while another read is in progress.
-    if (fresh.length && !busyRef.current && !isSpeaking() && !isListening()) void read(() => notificationReading(fresh));
+    if (fresh.length && !busyRef.current && !isSpeaking() && !isListening()) void read(() => `${loadVoicePrefs().attention ? 'Attention please. ' : ''}${notificationReading(fresh)}`);
   }, [enabled, armed, notifications.data, notifications.dataUpdatedAt, notifications.isFetching, read]);
   return null;
 }
@@ -195,5 +196,31 @@ function SpokenAlertsSettings({ householdId: hid, deviceId }: { householdId: str
       {enabled && <Button size="sm" variant="outline" onClick={() => persist(false)}>Disable spoken alerts</Button>}
     </div>
     {(error || storageError) && <p role="alert" className="text-sm text-destructive">{error || storageError}</p>}
+  </section>;
+}
+
+/** Per-device voice used for spoken alerts, announcements and voice replies. */
+export function VoicePreferencesControl() {
+  const [prefs, setPrefs] = useState<VoicePrefs>(loadVoicePrefs);
+  const [error, setError] = useState('');
+  const update = (patch: Partial<VoicePrefs>) => {
+    const next = { ...prefs, ...patch };
+    setPrefs(next);
+    try { saveVoicePrefs(next); setError(''); }
+    catch { setError('This browser could not save the voice setting. It applies only until this page closes.'); }
+  };
+  const test = () => { setError(''); void speak(`${prefs.attention ? 'Attention please. ' : ''}This is how FamilyHub announcements will sound.`, undefined, prefs).catch((e) => setError(voiceError(e))); };
+  return <section aria-label="Announcement voice" className="space-y-3 rounded-xl border p-3">
+    <p className="text-sm font-semibold">Announcement voice</p>
+    <p className="text-xs text-muted-foreground">Saved on this device. Male or female uses a matching voice when the device has one installed; otherwise FamilyHub lowers or raises the pitch. Loud uses full speech volume, so keep the device volume up.</p>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <Field label="Voice"><Select value={prefs.gender} onChange={(e) => update({ gender: e.target.value as VoicePrefs['gender'] })}><option value="default">Device default</option><option value="female">Female</option><option value="male">Male</option></Select></Field>
+      <Field label="Volume"><Select value={prefs.volume} onChange={(e) => update({ volume: e.target.value as VoicePrefs['volume'] })}><option value="loud">Loud</option><option value="normal">Normal</option></Select></Field>
+      <Field label="Tone"><Select value={prefs.tone} onChange={(e) => update({ tone: e.target.value as VoicePrefs['tone'] })}><option value="low">Low / deep</option><option value="normal">Normal</option><option value="high">High / bright</option></Select></Field>
+      <Field label="Speed"><Select value={prefs.rate} onChange={(e) => update({ rate: e.target.value as VoicePrefs['rate'] })}><option value="slow">Slow</option><option value="normal">Normal</option><option value="fast">Fast</option></Select></Field>
+    </div>
+    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={prefs.attention} onChange={(e) => update({ attention: e.target.checked })} />Say &ldquo;Attention please&rdquo; before each announcement</label>
+    <Button size="sm" variant="outline" onClick={test}><Volume2 />Test voice</Button>
+    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
   </section>;
 }

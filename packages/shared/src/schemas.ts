@@ -252,12 +252,24 @@ export const completeTaskSchema = z.object({
 export const reviewSchema = z.object({ approve: z.boolean() });
 
 // ── Rewards ──
+export const REWARD_CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'CAD', 'AUD', 'AED', 'SGD'] as const;
+export type RewardCurrency = (typeof REWARD_CURRENCIES)[number];
 export const createRewardSchema = z.object({
   title: z.string().trim().min(1).max(100),
   description: z.string().max(500).nullable().optional(),
   icon: z.string().max(40).nullable().optional(),
   cost: z.number().int().min(1).max(100000),
   isActive: z.boolean().default(true),
+  priceCents: z.number().int().min(0).max(100_000_000).nullable().optional(),
+  currency: z.enum(REWARD_CURRENCIES).optional(),
+  linkUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .url()
+    .refine((u) => /^https?:\/\//i.test(u), 'Use a web link starting with https://')
+    .nullable()
+    .optional(),
 });
 export const updateRewardSchema = createRewardSchema.partial();
 export const redeemRewardSchema = z.object({ memberId: z.string().uuid() });
@@ -325,6 +337,12 @@ const announcementFields = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
     .nullable()
     .optional(),
+  /** ISO weekdays (1=Mon..7=Sun) for weekly repeats; empty means every day. */
+  repeatDays: z
+    .array(z.number().int().min(1).max(7))
+    .max(7)
+    .refine((d) => new Set(d).size === d.length, 'Choose each day once.')
+    .default([]),
 });
 export const createAnnouncementSchema = announcementFields.superRefine((value, ctx) => {
   if (value.repeatDaily && !value.dailyTime)
@@ -332,6 +350,12 @@ export const createAnnouncementSchema = announcementFields.superRefine((value, c
       code: z.ZodIssueCode.custom,
       path: ['dailyTime'],
       message: 'Choose a daily announcement time.',
+    });
+  if (!value.repeatDaily && value.repeatDays.length)
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['repeatDays'],
+      message: 'Turn on repeating to choose days.',
     });
 });
 export const updateAnnouncementSchema = announcementFields.partial();

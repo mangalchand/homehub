@@ -17,4 +17,12 @@ public class MainActivity extends BridgeActivity {
     super.onResume();
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
   }
+
+  /** Back never closes the app: a wall display must stay in the foreground until someone leaves it on purpose (Home button or Android screen pinning). */
+  @Override
+  public void onBackPressed() {
+    if (bridge != null && bridge.getWebView() != null && bridge.getWebView().canGoBack()) {
+      bridge.getWebView().goBack();
+    }
+  }
 }

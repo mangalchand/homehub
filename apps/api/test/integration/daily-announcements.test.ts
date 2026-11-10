@@ -28,4 +28,19 @@ describe('daily announcement scheduling', () => {
       await prisma.notification.count({ where: { householdId: household.id, type: 'announcement.daily' } }),
     ).toBe(4);
   });
+
+  it('only fires weekly announcements on the chosen household-local weekdays', async () => {
+    const { household } = await makeHousehold();
+    // Household timezone is America/New_York in the test fixture unless changed; use UTC for a deterministic weekday.
+    await prisma.household.update({ where: { id: household.id }, data: { timezone: 'UTC' } });
+    await prisma.announcement.create({
+      data: { householdId: household.id, title: 'Bins out', repeatDaily: true, dailyTime: '07:00', repeatDays: [1, 5] },
+    });
+    // 2026-10-26 is a Monday, 27th Tuesday, 30th Friday.
+    expect(await runDailyAnnouncements(new Date('2026-10-26T07:00:00.000Z'))).toBe(1);
+    expect(await runDailyAnnouncements(new Date('2026-10-27T07:00:00.000Z'))).toBe(0);
+    expect(await runDailyAnnouncements(new Date('2026-10-28T07:00:00.000Z'))).toBe(0);
+    expect(await runDailyAnnouncements(new Date('2026-10-30T07:30:00.000Z'))).toBe(1);
+    expect(await prisma.notification.count({ where: { householdId: household.id, type: 'announcement.daily', memberId: null } })).toBe(2);
+  });
 });

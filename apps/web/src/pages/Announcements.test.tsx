@@ -109,6 +109,7 @@ describe('announcements page', () => {
           pinned: false,
           expiresAt: null,
           repeatDaily: false,
+          repeatDays: [],
           dailyTime: null,
         },
       }),
@@ -118,13 +119,41 @@ describe('announcements page', () => {
   it('configures an announcement to repeat at a local daily time', async () => {
     view();
     fireEvent.change(screen.getByLabelText('Announcement'), { target: { value: 'Take medicine' } });
-    fireEvent.click(screen.getByLabelText('Repeat every day'));
-    fireEvent.change(screen.getByLabelText('Daily notification time (UTC)'), { target: { value: '08:15' } });
+    fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'daily' } });
+    fireEvent.change(screen.getByLabelText('Announcement time (UTC)'), { target: { value: '08:15' } });
     fireEvent.click(screen.getByRole('button', { name: 'Post announcement' }));
     await waitFor(() =>
       expect(api).toHaveBeenCalledWith('/api/v1/households/h/announcements', {
         method: 'POST',
-        body: expect.objectContaining({ title: 'Take medicine', repeatDaily: true, dailyTime: '08:15' }),
+        body: expect.objectContaining({ title: 'Take medicine', repeatDaily: true, dailyTime: '08:15', repeatDays: [] }),
+      }),
+    );
+  });
+  it('configures a weekly announcement on chosen weekdays and shows the schedule on the card', async () => {
+    state.data = [{ ...message, repeatDaily: true, dailyTime: '19:00', repeatDays: [1, 3, 5] }];
+    view();
+    expect(screen.getByText('Repeats every Mon, Wed, Fri at 19:00 (UTC)')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Announcement'), { target: { value: 'Bins out' } });
+    fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'weekly' } });
+    fireEvent.change(screen.getByLabelText('Announcement time (UTC)'), { target: { value: '07:00' } });
+    const days = screen.getByRole('group', { name: 'Repeat on days' });
+    const pressed = () => Array.from(days.querySelectorAll('button[aria-pressed="true"]')).map((b) => b.textContent);
+    expect(pressed()).toHaveLength(1);
+    // The only selected day cannot be removed: weekly needs at least one day.
+    expect(days.querySelector('button[aria-pressed="true"]')).toBeDisabled();
+    for (const label of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
+      const b = screen.getByRole('button', { name: label });
+      if (b.getAttribute('aria-pressed') !== 'true') fireEvent.click(b);
+    }
+    expect(pressed()).toHaveLength(7);
+    fireEvent.click(screen.getByRole('button', { name: 'Sat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sun' }));
+    expect(pressed()).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
+    fireEvent.click(screen.getByRole('button', { name: 'Post announcement' }));
+    await waitFor(() =>
+      expect(api).toHaveBeenCalledWith('/api/v1/households/h/announcements', {
+        method: 'POST',
+        body: expect.objectContaining({ title: 'Bins out', repeatDaily: true, dailyTime: '07:00', repeatDays: [1, 2, 3, 4, 5] }),
       }),
     );
   });

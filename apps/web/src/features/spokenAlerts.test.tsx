@@ -11,7 +11,7 @@ import { SpokenAlertsControl, SpokenAlertsRunner, SpokenAlertTracker, spokenAler
 const { state } = vi.hoisted(() => ({ state: { me: undefined as Me | undefined, hid: 'h', feed: [] as FeedNotification[], isSpeaking: false, isListening: false } }));
 vi.mock('@/lib/queries', () => ({ useMe: () => ({ data: state.me }), useHid: () => state.hid }));
 vi.mock('@/lib/api', async (original) => ({ ...await original<typeof import('@/lib/api')>(), api: vi.fn() }));
-vi.mock('@/lib/voice/speech', () => ({ speak: vi.fn().mockResolvedValue(undefined), stopSpeaking: vi.fn(), isSpeaking: vi.fn(() => state.isSpeaking), isListening: vi.fn(() => state.isListening) }));
+vi.mock('@/lib/voice/speech', () => ({ loadVoicePrefs: () => ({ gender: 'default', tone: 'normal', volume: 'loud', rate: 'normal', attention: true }), saveVoicePrefs: vi.fn(), speak: vi.fn().mockResolvedValue(undefined), stopSpeaking: vi.fn(), isSpeaking: vi.fn(() => state.isSpeaking), isListening: vi.fn(() => state.isListening) }));
 
 const notification = (id: string, options: Partial<FeedNotification> = {}): FeedNotification => ({ id, householdId: 'h', memberId: null, title: id, body: 'Details', type: 'announcement', data: {}, readAt: null, createdAt: new Date().toISOString(), ...options });
 const device = (): Me => ({ kind: 'device', device: { id: 'd', householdId: 'h', name: 'Kitchen' }, memberships: [], session: { id: 's', pinElevatedUntil: null } });

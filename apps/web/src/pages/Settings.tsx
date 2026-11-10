@@ -32,7 +32,7 @@ import { Field, Input, Select } from '@/components/ui/input';
 import { Badge, PageHeader, Switch } from '@/components/ui/misc';
 import { NotificationsSection } from '@/features/notificationSettings';
 import { SafetyLocationSetting } from '@/features/safety';
-import { SpokenAlertsControl } from '@/features/spokenAlerts';
+import { SpokenAlertsControl, VoicePreferencesControl } from '@/features/spokenAlerts';
 import { AlexaSection } from '@/features/alexa';
 
 interface Provider {
@@ -531,6 +531,7 @@ export default function SettingsPage() {
       <NotificationsSection />
       <SafetyLocationSetting />
       <SpokenAlertsControl />
+      <VoicePreferencesControl />
       {!isDevice && <AlexaSection />}
       {!isDevice && <CalendarsSection />}
       <DevicesSection />

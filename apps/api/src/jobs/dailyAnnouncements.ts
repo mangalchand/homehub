@@ -2,7 +2,7 @@ import { DateTime } from 'luxon';
 import { prisma } from '../db.js';
 import { notify } from '../lib/notify.js';
 
-/** Send each scheduled household announcement once per local calendar day. */
+/** Send each scheduled household announcement once per local calendar day, on its chosen weekdays. */
 export async function runDailyAnnouncements(now = new Date()) {
   const announcements = await prisma.announcement.findMany({
     where: {
@@ -18,6 +18,7 @@ export async function runDailyAnnouncements(now = new Date()) {
   for (const announcement of announcements) {
     const local = DateTime.fromJSDate(now, { zone: announcement.household.timezone });
     if (!local.isValid || !announcement.dailyTime) continue;
+    if (announcement.repeatDays.length && !announcement.repeatDays.includes(local.weekday)) continue;
     const [hour, minute] = announcement.dailyTime.split(':').map(Number);
     if (local.hour * 60 + local.minute < hour! * 60 + minute!) continue;
     const localDate = local.toISODate()!;

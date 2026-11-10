@@ -124,6 +124,7 @@ export function InstallPage() {
       </S>
       <S h="Tips for a kitchen or hallway tablet">
         <p className="flex gap-2"><Tablet className="mt-0.5 h-5 w-5 shrink-0" /> Keep it plugged in, pair it as a Home display, and set a parent PIN in Settings so only adults can change things.</p>
+        <p className="flex gap-2"><Tablet className="mt-0.5 h-5 w-5 shrink-0" /> The app keeps the screen on and the Back button never closes it. To stop the Home and Recents buttons leaving the app, turn on Android <strong>Settings → Security → App pinning</strong>, open Recents, tap the FamilyHub icon and choose <strong>Pin</strong>. Hold Back and Recents together to unpin when you want to leave.</p>
         <p className="flex gap-2"><Smartphone className="mt-0.5 h-5 w-5 shrink-0" /> iPhone or iPad: open this site in Safari, tap Share → <strong>Add to Home Screen</strong>.</p>
       </S>
     </Doc>
